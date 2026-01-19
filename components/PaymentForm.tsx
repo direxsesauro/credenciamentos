@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Contract, PaymentRecord, PaymentEntry } from '../types';
 import { MONTHS } from '../constants';
+import CurrencyInput from './CurrencyInput';
 
 interface PaymentFormProps {
   contracts: Contract[];
@@ -99,11 +100,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
 
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Valor Bruto NF (R$)</label>
-            <input
-              type="number"
-              step="0.01"
+            <CurrencyInput
               value={valorNfe}
-              onChange={(e) => setValorNfe(parseFloat(e.target.value) || 0)}
+              onChange={setValorNfe}
+              placeholder="R$ 0,00"
               required
               className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
             />
@@ -184,11 +184,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
                   </div>
                   <div className="md:col-span-3 space-y-1">
                     <label className={`text-[10px] uppercase font-bold text-${source.color}-400 dark:text-${source.color}-500/60`}>Valor Pago (R$)</label>
-                    <input
-                      type="number"
-                      step="0.01"
+                    <CurrencyInput
                       value={entry.valor}
-                      onChange={(e) => source.update(entry.id, 'valor', parseFloat(e.target.value) || 0)}
+                      onChange={(value) => source.update(entry.id, 'valor', value)}
+                      placeholder="R$ 0,00"
                       className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors"
                     />
                   </div>

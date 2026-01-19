@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Contract } from '../types';
+import CurrencyInput from './CurrencyInput';
 
 interface ContractFormProps {
   initialData?: Contract;
@@ -31,7 +32,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'valor_global_anul' ? parseFloat(value) || 0 : value
+      [name]: value
     }));
   };
 
@@ -57,7 +58,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">CNPJ da Empresa</label>
-            <input 
+            <input
               name="cnpj"
               value={formData.cnpj}
               onChange={handleChange}
@@ -68,7 +69,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Nome da Empresa / Razão Social</label>
-            <input 
+            <input
               name="empresa"
               value={formData.empresa}
               onChange={handleChange}
@@ -79,7 +80,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
 
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Número do Contrato</label>
-            <input 
+            <input
               name="numero_contrato"
               value={formData.numero_contrato}
               onChange={handleChange}
@@ -90,7 +91,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Número do Processo</label>
-            <input 
+            <input
               name="numero_processo"
               value={formData.numero_processo}
               onChange={handleChange}
@@ -102,19 +103,17 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
 
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Valor Global Anual (R$)</label>
-            <input 
-              type="number"
-              step="0.01"
-              name="valor_global_anul"
-              value={formData.valor_global_anul}
-              onChange={handleChange}
+            <CurrencyInput
+              value={formData.valor_global_anul || 0}
+              onChange={(value) => setFormData(prev => ({ ...prev, valor_global_anul: value }))}
+              placeholder="R$ 0,00"
               required
               className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
             />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Início da Vigência</label>
-            <input 
+            <input
               type="date"
               name="inicio_vigencia"
               value={formData.inicio_vigencia}
@@ -127,7 +126,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
 
         <div className="space-y-1">
           <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Natureza do Serviço</label>
-          <input 
+          <input
             name="natureza"
             value={formData.natureza}
             onChange={handleChange}
@@ -138,7 +137,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
 
         <div className="space-y-1">
           <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Objeto do Contrato</label>
-          <textarea 
+          <textarea
             name="objeto"
             value={formData.objeto}
             onChange={handleChange}
@@ -149,14 +148,14 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
         </div>
 
         <div className="flex items-center justify-end gap-4 pt-4">
-          <button 
+          <button
             type="button"
             onClick={onCancel}
             className="px-6 py-3 text-slate-500 dark:text-slate-400 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
           >
             Cancelar
           </button>
-          <button 
+          <button
             type="submit"
             className="px-10 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 dark:shadow-blue-900/20 hover:bg-blue-700 transition"
           >
