@@ -1,0 +1,5 @@
+{
+  "name": "SESAU/RO - Gestão de Pagamentos Credenciamentos",
+  "description": "Ferramenta de controle financeiro para pagamentos de prestadores credenciados à rede SUS em Rondônia, com suporte a múltiplas fontes e dashboards comparativos.",
+  "requestFramePermissions": []
+}

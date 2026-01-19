@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Regras para coleção de contratos
+    // Acesso público para leitura e escrita
+    match /contracts/{contractId} {
+      allow read, write: if true;
+      
+      // Validação básica de dados (opcional)
+      allow create: if request.resource.data.keys().hasAll([
+        'cnpj', 'empresa', 'numero_contrato', 'numero_processo', 
+        'objeto', 'valor_global_anul', 'inicio_vigencia'
+      ]);
+      
+      allow update: if request.resource.data.keys().hasAll([
+        'cnpj', 'empresa', 'numero_contrato', 'numero_processo', 
+        'objeto', 'valor_global_anul', 'inicio_vigencia'
+      ]);
+    }
+    
+    // Regras para coleção de pagamentos
+    // Acesso público para leitura e escrita
+    match /payments/{paymentId} {
+      allow read, write: if true;
+      
+      // Validação básica de dados (opcional)
+      allow create: if request.resource.data.keys().hasAll([
+        'numero_contrato', 'numero_nf', 'valor_nfe', 
+        'mes_competencia', 'ano_competencia'
+      ]);
+    }
+  }
+}

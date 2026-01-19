@@ -1,0 +1,21 @@
+# Firebase Indexes Configuration
+# Este arquivo pode ser usado para configurar índices compostos no Firestore
+
+indexes:
+  # Índice para buscar pagamentos por contrato ordenados por data
+  - collectionGroup: payments
+    queryScope: COLLECTION
+    fields:
+      - fieldPath: numero_contrato
+        order: ASCENDING
+      - fieldPath: createdAt
+        order: DESCENDING
+
+  # Índice para buscar contratos ordenados por data de criação
+  - collectionGroup: contracts
+    queryScope: COLLECTION
+    fields:
+      - fieldPath: createdAt
+        order: DESCENDING
+
+fieldOverrides: []
