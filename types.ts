@@ -32,4 +32,4 @@ export interface PaymentRecord {
   data_cadastro: string;
 }
 
-export type ViewType = 'dashboard' | 'contracts' | 'payments' | 'new-payment' | 'new-contract' | 'edit-contract';
+export type ViewType = 'dashboard' | 'contracts' | 'payments' | 'new-payment' | 'new-contract' | 'edit-contract' | 'edit-payment';

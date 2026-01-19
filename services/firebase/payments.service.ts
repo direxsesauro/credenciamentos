@@ -28,10 +28,15 @@ export const getPayments = async (): Promise<PaymentRecord[]> => {
     try {
         const q = query(collection(db, PAYMENTS_COLLECTION), orderBy('createdAt', 'desc'));
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as PaymentRecord));
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            // Se o documento tem um campo 'id' interno (importado via Python), usar ele
+            // Caso contrário, usar o ID do documento do Firestore
+            return {
+                ...data,
+                id: data.id || doc.id
+            } as PaymentRecord;
+        });
     } catch (error) {
         console.error('Erro ao buscar pagamentos:', error);
         throw error;
@@ -47,9 +52,10 @@ export const getPaymentById = async (id: string): Promise<PaymentRecord | null> 
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
+            const data = docSnap.data();
             return {
-                id: docSnap.id,
-                ...docSnap.data()
+                ...data,
+                id: data.id || docSnap.id
             } as PaymentRecord;
         }
         return null;
@@ -78,6 +84,44 @@ export const addPayment = async (payment: Omit<PaymentRecord, 'id'>): Promise<st
 };
 
 /**
+ * Atualizar pagamento existente
+ */
+export const updatePayment = async (id: string, payment: Partial<PaymentRecord>): Promise<void> => {
+    try {
+        // Primeiro, tentar encontrar o documento pelo ID fornecido
+        let docRef = doc(db, PAYMENTS_COLLECTION, id);
+        let docSnap = await getDoc(docRef);
+
+        // Se não encontrar, procurar por documentos com campo 'id' interno igual ao fornecido
+        if (!docSnap.exists()) {
+            const q = query(collection(db, PAYMENTS_COLLECTION));
+            const querySnapshot = await getDocs(q);
+
+            for (const document of querySnapshot.docs) {
+                const data = document.data();
+                if (data.id === id) {
+                    docRef = doc(db, PAYMENTS_COLLECTION, document.id);
+                    break;
+                }
+            }
+        }
+
+        const updateData = {
+            ...payment,
+            updatedAt: Timestamp.now()
+        };
+
+        // Remove o campo id se existir
+        const { id: _, ...dataWithoutId } = updateData as any;
+
+        await updateDoc(docRef, dataWithoutId);
+    } catch (error) {
+        console.error('Erro ao atualizar pagamento:', error);
+        throw error;
+    }
+};
+
+/**
  * Buscar pagamentos por número de contrato
  */
 export const getPaymentsByContract = async (contractNumber: string): Promise<PaymentRecord[]> => {
@@ -88,10 +132,13 @@ export const getPaymentsByContract = async (contractNumber: string): Promise<Pay
             orderBy('createdAt', 'desc')
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as PaymentRecord));
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                id: data.id || doc.id
+            } as PaymentRecord;
+        });
     } catch (error) {
         console.error('Erro ao buscar pagamentos por contrato:', error);
         throw error;
@@ -111,10 +158,13 @@ export const subscribeToPayments = (
         const unsubscribe = onSnapshot(
             q,
             (snapshot) => {
-                const payments = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                } as PaymentRecord));
+                const payments = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        ...data,
+                        id: data.id || doc.id
+                    } as PaymentRecord;
+                });
                 callback(payments);
             },
             (error) => {
@@ -148,10 +198,13 @@ export const subscribeToPaymentsByContract = (
         const unsubscribe = onSnapshot(
             q,
             (snapshot) => {
-                const payments = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                } as PaymentRecord));
+                const payments = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        ...data,
+                        id: data.id || doc.id
+                    } as PaymentRecord;
+                });
                 callback(payments);
             },
             (error) => {

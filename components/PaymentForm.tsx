@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Contract, PaymentRecord, PaymentEntry } from '../types';
 import { MONTHS } from '../constants';
 import CurrencyInput from './CurrencyInput';
@@ -7,11 +7,12 @@ import CurrencyInput from './CurrencyInput';
 interface PaymentFormProps {
   contracts: Contract[];
   initialContract: Contract | null;
+  initialData?: PaymentRecord; // Novo: dados iniciais para edição
   onSubmit: (payment: PaymentRecord) => void;
   onCancel: () => void;
 }
 
-const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, onSubmit, onCancel }) => {
+const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, initialData, onSubmit, onCancel }) => {
   const [selectedContractId, setSelectedContractId] = useState(initialContract?.id || '');
   const [numeroNf, setNumeroNf] = useState('');
   const [valorNfe, setValorNfe] = useState<number>(0);
@@ -28,6 +29,30 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
 
   const [fedEntries, setFedEntries] = useState<PaymentEntry[]>([createEmptyEntry()]);
   const [estEntries, setEstEntries] = useState<PaymentEntry[]>([createEmptyEntry()]);
+
+  // Carregar dados iniciais se estiver editando
+  useEffect(() => {
+    if (initialData) {
+      // Encontrar o contrato pelo numero_contrato
+      const contract = contracts.find(c => c.numero_contrato === initialData.numero_contrato);
+      if (contract) {
+        setSelectedContractId(contract.id);
+      }
+
+      setNumeroNf(initialData.numero_nf);
+      setValorNfe(initialData.valor_nfe);
+      setMes(initialData.mes_competencia);
+      setAno(initialData.ano_competencia);
+
+      // Carregar ordens bancárias existentes
+      if (initialData.pagamentos_fed && initialData.pagamentos_fed.length > 0) {
+        setFedEntries(initialData.pagamentos_fed);
+      }
+      if (initialData.pagamentos_est && initialData.pagamentos_est.length > 0) {
+        setEstEntries(initialData.pagamentos_est);
+      }
+    }
+  }, [initialData, contracts]);
 
   const addFedEntry = () => setFedEntries([...fedEntries, createEmptyEntry()]);
   const addEstEntry = () => setEstEntries([...estEntries, createEmptyEntry()]);
@@ -48,8 +73,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
     const contract = contracts.find(c => c.id === selectedContractId);
     if (!contract) return;
 
-    const newPayment: PaymentRecord = {
-      id: Math.random().toString(36).substr(2, 9),
+    const payment: PaymentRecord = {
+      id: initialData?.id || Math.random().toString(36).substr(2, 9),
       numero_contrato: contract.numero_contrato,
       numero_nf: numeroNf,
       valor_nfe: valorNfe,
@@ -57,17 +82,21 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
       pagamentos_est: estEntries.filter(e => e.valor > 0 || e.referencia_ob),
       mes_competencia: mes,
       ano_competencia: ano,
-      data_cadastro: new Date().toISOString()
+      data_cadastro: initialData?.data_cadastro || new Date().toISOString()
     };
 
-    onSubmit(newPayment);
+    onSubmit(payment);
   };
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 max-w-5xl mx-auto overflow-hidden animate-in slide-in-from-bottom-4 duration-300 mb-12 transition-colors">
       <div className="bg-slate-900 dark:bg-slate-950 p-6 text-white transition-colors">
-        <h3 className="text-xl font-bold">Novo Evento de Pagamento</h3>
-        <p className="text-slate-400 text-sm">Registre a NF-e e as ordens bancárias de liquidação.</p>
+        <h3 className="text-xl font-bold">{initialData ? 'Editar Pagamento' : 'Novo Evento de Pagamento'}</h3>
+        <p className="text-slate-400 text-sm">
+          {initialData
+            ? 'Adicione ou edite ordens bancárias para esta nota fiscal.'
+            : 'Registre a NF-e e as ordens bancárias de liquidação.'}
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="p-8 space-y-8">
@@ -78,7 +107,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
               value={selectedContractId}
               onChange={(e) => setSelectedContractId(e.target.value)}
               required
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+              disabled={!!initialData} // Desabilitar se estiver editando
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">Selecione um contrato...</option>
               {contracts.map(c => (
@@ -93,8 +123,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
               value={numeroNf}
               onChange={(e) => setNumeroNf(e.target.value)}
               placeholder="Ex: NF-12345"
-              // required
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+              disabled={!!initialData} // Desabilitar se estiver editando
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -105,7 +135,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
               onChange={setValorNfe}
               placeholder="R$ 0,00"
               required
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+              disabled={!!initialData} // Desabilitar se estiver editando
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -114,7 +145,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
             <select
               value={mes}
               onChange={(e) => setMes(parseInt(e.target.value))}
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+              disabled={!!initialData}
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {MONTHS.map((m, idx) => <option key={m} value={idx + 1}>{m}</option>)}
             </select>
@@ -126,7 +158,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
               type="number"
               value={ano}
               onChange={(e) => setAno(parseInt(e.target.value))}
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+              disabled={!!initialData}
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -214,7 +247,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, o
             type="submit"
             className="px-10 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 dark:shadow-blue-900/20 hover:bg-blue-700 transition"
           >
-            Confirmar Lançamento
+            {initialData ? 'Salvar Alterações' : 'Confirmar Lançamento'}
           </button>
         </div>
       </form>

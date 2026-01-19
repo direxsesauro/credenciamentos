@@ -6,10 +6,11 @@ import { MONTHS } from '../constants';
 interface PaymentHistoryProps {
   payments: PaymentRecord[];
   contracts: Contract[];
+  onEdit: (payment: PaymentRecord) => void;
 }
 
-const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments, contracts }) => {
-  const formatCurrency = (val: number) => 
+const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments, contracts, onEdit }) => {
+  const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   const getSourceTotal = (entries: any[]) => entries.reduce((acc, e) => acc + e.valor, 0);
@@ -25,7 +26,7 @@ const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments, contracts }) 
         {payments.sort((a, b) => new Date(b.data_cadastro).getTime() - new Date(a.data_cadastro).getTime()).map(payment => {
           const contract = contracts.find(c => c.numero_contrato === payment.numero_contrato);
           const totalPaid = getSourceTotal(payment.pagamentos_fed) + getSourceTotal(payment.pagamentos_est);
-          
+
           return (
             <div key={payment.id} className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden group transition-colors">
               <div className="grid grid-cols-1 md:grid-cols-4 items-stretch">
@@ -33,10 +34,10 @@ const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments, contracts }) 
                 <div className="p-6 border-r border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 transition-colors">
                   <div className="text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-1">Competência</div>
                   <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{MONTHS[payment.mes_competencia - 1]} / {payment.ano_competencia}</div>
-                  
+
                   <div className="mt-4 text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-1">Nota Fiscal</div>
                   <div className="text-md font-bold text-blue-600 dark:text-blue-400">{payment.numero_nf}</div>
-                  
+
                   <div className="mt-4 text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-1">Lançado em</div>
                   <div className="text-xs text-slate-600 dark:text-slate-500">{new Date(payment.data_cadastro).toLocaleString('pt-BR')}</div>
                 </div>
@@ -47,7 +48,7 @@ const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments, contracts }) 
                     <span className="text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded transition-colors">CONTRATO {payment.numero_contrato}</span>
                   </div>
                   <h4 className="font-bold text-slate-800 dark:text-slate-100 text-lg leading-tight">{contract?.empresa || 'Empresa não encontrada'}</h4>
-                  
+
                   <div className="mt-6 space-y-4">
                     {/* Federal Details */}
                     {payment.pagamentos_fed.length > 0 && (
@@ -91,9 +92,17 @@ const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments, contracts }) 
                   <div className="text-2xl font-black">{formatCurrency(totalPaid)}</div>
                   <div className="text-[10px] text-slate-500 mt-2">Valor NF: {formatCurrency(payment.valor_nfe)}</div>
                   <div className="mt-4 pt-4 border-t border-slate-800 dark:border-slate-700">
-                     <span className={`text-[10px] px-2 py-1 rounded font-bold ${totalPaid >= payment.valor_nfe ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                        {totalPaid >= payment.valor_nfe ? 'TOTALMENTE PAGO' : 'PAGAMENTO PARCIAL'}
-                     </span>
+                    <span className={`text-[10px] px-2 py-1 rounded font-bold ${totalPaid >= payment.valor_nfe ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                      {totalPaid >= payment.valor_nfe ? 'TOTALMENTE PAGO' : 'PAGAMENTO PARCIAL'}
+                    </span>
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      onClick={() => onEdit(payment)}
+                      className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-2"
+                    >
+                      <span>✏️</span> Editar Pagamento
+                    </button>
                   </div>
                 </div>
               </div>

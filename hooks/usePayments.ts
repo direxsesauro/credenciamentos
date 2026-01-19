@@ -3,6 +3,7 @@ import { PaymentRecord } from '../types';
 import {
     getPayments,
     addPayment as addPaymentService,
+    updatePayment as updatePaymentService,
     getPaymentsByContract,
     subscribeToPayments,
     subscribeToPaymentsByContract
@@ -13,6 +14,7 @@ interface UsePaymentsReturn {
     loading: boolean;
     error: Error | null;
     addPayment: (payment: Omit<PaymentRecord, 'id'>) => Promise<string>;
+    updatePayment: (id: string, payment: Partial<PaymentRecord>) => Promise<void>;
     refreshPayments: () => Promise<void>;
 }
 
@@ -93,11 +95,22 @@ export const usePayments = (
         }
     };
 
+    // Atualizar pagamento
+    const updatePayment = async (id: string, payment: Partial<PaymentRecord>): Promise<void> => {
+        try {
+            await updatePaymentService(id, payment);
+        } catch (err) {
+            setError(err as Error);
+            throw err;
+        }
+    };
+
     return {
         payments,
         loading,
         error,
         addPayment,
+        updatePayment,
         refreshPayments
     };
 };

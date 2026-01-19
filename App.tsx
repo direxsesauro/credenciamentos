@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ViewType, Contract } from './types';
+import { ViewType, Contract, PaymentRecord } from './types';
 import { useContracts } from './hooks/useContracts';
 import { usePayments } from './hooks/usePayments';
 import { migrateLocalStorageToFirestore } from './utils/migration';
@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
+  const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('sesau_theme') === 'dark';
   });
@@ -34,7 +35,8 @@ const App: React.FC = () => {
     payments,
     loading: paymentsLoading,
     error: paymentsError,
-    addPayment: addPaymentToFirestore
+    addPayment: addPaymentToFirestore,
+    updatePayment: updatePaymentInFirestore
   } = usePayments(true); // true = tempo real
 
   // Migração automática do localStorage para Firestore
@@ -120,6 +122,22 @@ const App: React.FC = () => {
     }
   };
 
+  const updatePayment = async (payment: PaymentRecord) => {
+    try {
+      await updatePaymentInFirestore(payment.id, payment);
+      setEditingPayment(null);
+      setCurrentView('payments');
+    } catch (error) {
+      console.error('Erro ao atualizar pagamento:', error);
+      alert('Erro ao atualizar pagamento. Verifique sua conexão e tente novamente.');
+    }
+  };
+
+  const handleEditPayment = (payment: PaymentRecord) => {
+    setEditingPayment(payment);
+    setCurrentView('edit-payment');
+  };
+
   const handleLaunchPayment = (contract: Contract) => {
     setSelectedContract(contract);
     setCurrentView('new-payment');
@@ -194,7 +212,7 @@ const App: React.FC = () => {
             />
           )}
           {currentView === 'payments' && (
-            <PaymentHistory payments={payments} contracts={contracts} />
+            <PaymentHistory payments={payments} contracts={contracts} onEdit={handleEditPayment} />
           )}
           {currentView === 'new-payment' && (
             <PaymentForm
@@ -215,6 +233,15 @@ const App: React.FC = () => {
               initialData={editingContract}
               onSubmit={handleUpdateContract}
               onCancel={() => { setEditingContract(null); setCurrentView('contracts'); }}
+            />
+          )}
+          {currentView === 'edit-payment' && editingPayment && (
+            <PaymentForm
+              contracts={contracts}
+              initialContract={null}
+              initialData={editingPayment}
+              onSubmit={updatePayment}
+              onCancel={() => { setEditingPayment(null); setCurrentView('payments'); }}
             />
           )}
         </div>
