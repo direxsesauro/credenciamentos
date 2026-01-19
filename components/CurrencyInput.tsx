@@ -23,6 +23,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
     disabled = false
 }) => {
     const [displayValue, setDisplayValue] = useState<string>('');
+    const [isFocused, setIsFocused] = useState<boolean>(false);
 
     // Formatar número para exibição (1234567.89 -> "1.234.567,89")
     const formatToBRL = (num: number): string => {
@@ -70,37 +71,39 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
         return isNaN(parsed) ? 0 : parsed;
     };
 
-    // Atualizar display quando value prop mudar
+    // Atualizar display quando value prop mudar, MAS APENAS SE NÃO ESTIVER FOCADO
     useEffect(() => {
-        setDisplayValue(formatToBRL(value));
-    }, [value]);
+        if (!isFocused) {
+            setDisplayValue(formatToBRL(value));
+        }
+    }, [value, isFocused]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const inputValue = e.target.value;
 
+        // Permitir digitação livre enquanto focado, apenas restringindo caracteres inválidos básicos
+        // Mas para manter a UX simples, deixamos o valor entrar e o parse lida com ele
+        setDisplayValue(inputValue);
+
         // Permitir campo vazio
         if (inputValue === '') {
-            setDisplayValue('');
             onChange(0);
             return;
         }
 
-        // Converter para número
+        // Converter para número e enviar pro pai
         const numericValue = parseFromBRL(inputValue);
-
-        // Atualizar valor no componente pai
         onChange(numericValue);
-
-        // Atualizar display
-        setDisplayValue(inputValue);
     };
 
     const handleBlur = () => {
+        setIsFocused(false);
         // Ao perder o foco, formatar corretamente
         setDisplayValue(formatToBRL(value));
     };
 
     const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+        setIsFocused(true);
         // Ao focar, selecionar todo o texto para facilitar substituição
         e.target.select();
     };
