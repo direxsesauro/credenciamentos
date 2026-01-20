@@ -197,7 +197,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           {currentView === 'dashboard' && (
             <Dashboard contracts={contracts} payments={payments} isDarkMode={isDarkMode} />
           )}

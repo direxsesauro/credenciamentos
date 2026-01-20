@@ -95,6 +95,54 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+  // Calculo de todas as Ordens Bancarias para a lista detalhada
+  const allOBs = useMemo(() => {
+    const obs: {
+      id: string;
+      referencia_ob: string;
+      data_ob: string;
+      numero_empenho: string;
+      nf: string;
+      source: 'Federal' | 'Estadual';
+      mes: number;
+      ano: number;
+      valor: number;
+    }[] = [];
+
+    filteredPayments.forEach(payment => {
+      // Federal
+      payment.pagamentos_fed.forEach(entry => {
+        obs.push({
+          id: `${payment.id}-fed-${entry.id}`,
+          referencia_ob: entry.referencia_ob,
+          data_ob: entry.data_ob,
+          numero_empenho: entry.numero_empenho,
+          nf: payment.numero_nf,
+          source: 'Federal',
+          mes: payment.mes_competencia,
+          ano: payment.ano_competencia,
+          valor: entry.valor
+        });
+      });
+      // Estadual
+      payment.pagamentos_est.forEach(entry => {
+        obs.push({
+          id: `${payment.id}-est-${entry.id}`,
+          referencia_ob: entry.referencia_ob,
+          data_ob: entry.data_ob,
+          numero_empenho: entry.numero_empenho,
+          nf: payment.numero_nf,
+          source: 'Estadual',
+          mes: payment.mes_competencia,
+          ano: payment.ano_competencia,
+          valor: entry.valor
+        });
+      });
+    });
+
+    return obs.sort((a, b) => new Date(b.data_ob).getTime() - new Date(a.data_ob).getTime());
+  }, [filteredPayments]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
       {/* Filters Section */}
@@ -325,6 +373,72 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
           </div>
         </div>
       </div>
+      {/* Summary Table Section */}
+      {filterContract !== 'all' && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom-4 duration-500 transition-colors">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">Detalhamento de Ordens Bancárias</h4>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Listagem completa de liquidações para o contrato selecionado.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase font-bold tracking-wider">
+                <tr>
+                  <th className="px-6 py-4">N° Ordem (OB)</th>
+                  <th className="px-6 py-4">Data OB</th>
+                  <th className="px-6 py-4">N° Empenho (NE)</th>
+                  <th className="px-6 py-4">Nota Fiscal</th>
+                  <th className="px-6 py-4">Fonte</th>
+                  <th className="px-6 py-4">Competência</th>
+                  <th className="px-6 py-4 text-right">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {allOBs.map((ob) => (
+                  <tr key={ob.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="px-6 py-4 font-medium text-slate-700 dark:text-slate-200">{ob.referencia_ob}</td>
+                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{new Date(ob.data_ob).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{ob.numero_empenho}</td>
+                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-medium">{ob.nf}</td>
+                    <td className="px-6 py-4">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${ob.source === 'Federal'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                        }`}>
+                        {ob.source}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                      {MONTHS[ob.mes - 1]} / {ob.ano}
+                    </td>
+                    <td className="px-6 py-4 text-right font-bold text-slate-800 dark:text-slate-100">
+                      {formatCurrency(ob.valor)}
+                    </td>
+                  </tr>
+                ))}
+                {allOBs.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center text-slate-400 dark:text-slate-600">
+                      Nenhuma ordem bancária encontrada para este contrato no período/filtros selecionados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              {allOBs.length > 0 && (
+                <tfoot className="bg-slate-50 dark:bg-slate-800/50 font-bold">
+                  <tr>
+                    <td colSpan={6} className="px-6 py-4 text-right text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">Total Acumulado</td>
+                    <td className="px-6 py-4 text-right text-slate-800 dark:text-slate-100 text-lg">
+                      {formatCurrency(allOBs.reduce((acc, curr) => acc + curr.valor, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
