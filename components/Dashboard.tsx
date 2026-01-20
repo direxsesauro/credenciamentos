@@ -16,6 +16,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }) => {
   const [filterContract, setFilterContract] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Cores adaptativas para o gráfico
   const axisColor = isDarkMode ? '#94a3b8' : '#64748b';
@@ -47,18 +48,24 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   }, [payments, filterContract, filterYear]);
 
   const monthlyData = useMemo(() => {
-    return MONTHS.map((month, index) => {
+    const data = MONTHS.map((month, index) => {
       const monthPayments = filteredPayments.filter(p => p.mes_competencia === index + 1);
       const fed = monthPayments.reduce((acc, p) => acc + p.pagamentos_fed.reduce((v, e) => v + e.valor, 0), 0);
       const est = monthPayments.reduce((acc, p) => acc + p.pagamentos_est.reduce((v, e) => v + e.valor, 0), 0);
+      const nfe = monthPayments.reduce((acc, p) => acc + p.valor_nfe, 0);
       return {
         name: month,
         fed,
         est,
         total: fed + est,
+        nfe,
         expected: expectedMonthlyValue
       };
     });
+
+    // Encontra o index do primeiro mês que possui uma ordem bancária (total > 0)
+    const firstMonthWithData = data.findIndex(d => d.total > 0);
+    return firstMonthWithData === -1 ? data : data.slice(firstMonthWithData);
   }, [filteredPayments, expectedMonthlyValue]);
 
   const totalFed = useMemo(() => filteredPayments.reduce((acc, p) => acc + p.pagamentos_fed.reduce((v, e) => v + e.valor, 0), 0), [filteredPayments]);
@@ -96,6 +103,39 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   // Calculo de todas as Ordens Bancarias para a lista detalhada
+  // Helper para parsing de data consistente (sempre local para evitar shift de timezone)
+  const parseDateToTime = (dateStr: string) => {
+    if (!dateStr) return 0;
+    const cleanDate = dateStr.trim();
+
+    // Formato DD/MM/YYYY
+    if (cleanDate.includes('/')) {
+      const parts = cleanDate.split('/');
+      if (parts.length === 3) {
+        const [day, month, year] = parts.map(Number);
+        return new Date(year, month - 1, day).getTime();
+      }
+    }
+
+    // Formato YYYY-MM-DD
+    if (cleanDate.includes('-')) {
+      const parts = cleanDate.split('-');
+      if (parts.length === 3) {
+        if (parts[0].length === 4) { // YYYY-MM-DD
+          const [y, m, d] = parts.map(Number);
+          return new Date(y, m - 1, d).getTime();
+        } else { // DD-MM-YYYY
+          const [d, m, y] = parts.map(Number);
+          return new Date(y, m - 1, d).getTime();
+        }
+      }
+    }
+
+    const d = new Date(cleanDate);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  };
+
+  // Calculo de todas as Ordens Bancarias para a lista detalhada
   const allOBs = useMemo(() => {
     const obs: {
       id: string;
@@ -107,6 +147,7 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
       mes: number;
       ano: number;
       valor: number;
+      time: number;
     }[] = [];
 
     filteredPayments.forEach(payment => {
@@ -121,7 +162,8 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
           source: 'Federal',
           mes: payment.mes_competencia,
           ano: payment.ano_competencia,
-          valor: entry.valor
+          valor: entry.valor,
+          time: parseDateToTime(entry.data_ob)
         });
       });
       // Estadual
@@ -135,13 +177,19 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
           source: 'Estadual',
           mes: payment.mes_competencia,
           ano: payment.ano_competencia,
-          valor: entry.valor
+          valor: entry.valor,
+          time: parseDateToTime(entry.data_ob)
         });
       });
     });
 
-    return obs.sort((a, b) => new Date(b.data_ob).getTime() - new Date(a.data_ob).getTime());
-  }, [filteredPayments]);
+    return obs.sort((a, b) => {
+      if (a.time !== b.time) {
+        return sortOrder === 'asc' ? a.time - b.time : b.time - a.time;
+      }
+      return b.referencia_ob.localeCompare(a.referencia_ob);
+    });
+  }, [filteredPayments, sortOrder]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -239,6 +287,10 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
           </div>
           <div className="flex items-center gap-4 text-xs font-medium">
             <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+              <div className="w-4 h-0 border-t-2 border-orange-500"></div>
+              <span>Valor NF</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
               <div className="w-4 h-0 border-t-2 border-dashed border-blue-500"></div>
               <span>Meta (Global / 12)</span>
             </div>
@@ -281,6 +333,16 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
                 strokeWidth={3}
                 fillOpacity={1}
                 fill="url(#colorTotal)"
+              />
+
+              <Line
+                type="monotone"
+                dataKey="nfe"
+                name="Valor das Notas Fiscais"
+                stroke="#f97316"
+                strokeWidth={1}
+                dot={{ r: 2, fill: '#f97316' }}
+              // activeDot={{ r: 6 }}
               />
 
               <Line
@@ -373,6 +435,7 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
           </div>
         </div>
       </div>
+
       {/* Summary Table Section */}
       {filterContract !== 'all' && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom-4 duration-500 transition-colors">
@@ -385,7 +448,12 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
               <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase font-bold tracking-wider">
                 <tr>
                   <th className="px-6 py-4">N° Ordem (OB)</th>
-                  <th className="px-6 py-4">Data OB</th>
+                  <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}>
+                    <div className="flex items-center gap-2">
+                      Data OB
+                      <span className={`transition-transform duration-200 ${sortOrder === 'asc' ? 'rotate-180' : ''}`}>▼</span>
+                    </div>
+                  </th>
                   <th className="px-6 py-4">N° Empenho (NE)</th>
                   <th className="px-6 py-4">Nota Fiscal</th>
                   <th className="px-6 py-4">Fonte</th>
@@ -397,7 +465,16 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
                 {allOBs.map((ob) => (
                   <tr key={ob.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-700 dark:text-slate-200">{ob.referencia_ob}</td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{new Date(ob.data_ob).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                      {(() => {
+                        if (!ob.data_ob) return "-";
+                        // Se já está no formato DD/MM/YYYY, exibe direto para evitar problemas de parsing
+                        if (ob.data_ob.includes('/')) return ob.data_ob;
+                        // Senão tenta converter
+                        const d = new Date(ob.time);
+                        return isNaN(d.getTime()) ? ob.data_ob : d.toLocaleDateString('pt-BR');
+                      })()}
+                    </td>
                     <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{ob.numero_empenho}</td>
                     <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-medium">{ob.nf}</td>
                     <td className="px-6 py-4">
@@ -438,7 +515,6 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
           </div>
         </div>
       )}
-
     </div>
   );
 };
