@@ -14,7 +14,6 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }) => {
-  const [filterCompany, setFilterCompany] = useState<string>('all');
   const [filterContract, setFilterContract] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
 
@@ -22,23 +21,17 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   const axisColor = isDarkMode ? '#94a3b8' : '#64748b';
   const gridColor = isDarkMode ? '#1e293b' : '#f1f5f9';
 
-  const companies = useMemo(() => Array.from(new Set(contracts.map(c => c.empresa))).sort(), [contracts]);
-  // Objects filter removed
   const years = useMemo(() => Array.from(new Set(payments.map(p => p.ano_competencia.toString()))).sort().reverse(), [payments]);
 
   // Contratos filtrados por empresa (para o dropdown de contratos)
-  const contractsForDropdown = useMemo(() => {
-    if (filterCompany === 'all') return contracts;
-    return contracts.filter(c => c.empresa === filterCompany);
-  }, [contracts, filterCompany]);
+  const contractsForDropdown = contracts;
 
   const filteredContractsForExpected = useMemo(() => {
     return contracts.filter(c => {
-      const matchesCompany = filterCompany === 'all' || c.empresa === filterCompany;
       const matchesContract = filterContract === 'all' || c.numero_contrato === filterContract;
-      return matchesCompany && matchesContract;
+      return matchesContract;
     });
-  }, [contracts, filterCompany, filterContract]);
+  }, [contracts, filterContract]);
 
   const expectedMonthlyValue = useMemo(() => {
     const totalGlobal = filteredContractsForExpected.reduce((acc, c) => acc + c.valor_global_anul, 0);
@@ -47,13 +40,11 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
 
   const filteredPayments = useMemo(() => {
     return payments.filter(p => {
-      const contract = contracts.find(c => c.numero_contrato === p.numero_contrato);
-      const matchesCompany = filterCompany === 'all' || contract?.empresa === filterCompany;
       const matchesContract = filterContract === 'all' || p.numero_contrato === filterContract;
       const matchesYear = filterYear === 'all' || p.ano_competencia.toString() === filterYear;
-      return matchesCompany && matchesContract && matchesYear;
+      return matchesContract && matchesYear;
     });
-  }, [payments, contracts, filterCompany, filterContract, filterYear]);
+  }, [payments, filterContract, filterYear]);
 
   const monthlyData = useMemo(() => {
     return MONTHS.map((month, index) => {
@@ -108,24 +99,10 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
       {/* Filters Section */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end transition-colors">
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Empresa</label>
-          <select
-            value={filterCompany}
-            onChange={(e) => {
-              setFilterCompany(e.target.value);
-              setFilterContract('all'); // Resetar contrato ao mudar empresa
-            }}
-            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
-          >
-            <option value="all">Todas as Empresas</option>
-            {companies.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
 
-        <div className="space-y-1">
+        <div className="lg:col-span-3 space-y-1">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-            Contrato Específico
+            Contratos
             {contractsForDropdown.length > 1 && (
               <span className="ml-1 text-amber-500">({contractsForDropdown.length} contratos)</span>
             )}
@@ -138,7 +115,7 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
             <option value="all">Todos os Contratos</option>
             {contractsForDropdown.map(c => (
               <option key={c.id || c.numero_contrato} value={c.numero_contrato}>
-                {c.numero_contrato} - {c.objeto.substring(0, 40)}...
+                {c.numero_contrato} - {c.empresa} - {c.natureza}
               </option>
             ))}
           </select>
@@ -149,26 +126,33 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
           <select
             value={filterYear}
             onChange={(e) => setFilterYear(e.target.value)}
-            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+            className="w-full p-2 bg-slate-60 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
           >
             <option value="all">Todos os Anos</option>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
-
-        <div>
-          <button
-            onClick={() => {
-              setFilterCompany('all');
-              setFilterContract('all');
-              setFilterYear(new Date().getFullYear().toString());
-            }}
-            className="text-xs font-bold text-blue-600 hover:text-blue-700 transition"
-          >
-            Limpar Filtros
-          </button>
-        </div>
       </div>
+
+      {/* Contract Details Card */}
+      {filterContract !== 'all' && (() => {
+        const selectedContract = contracts.find(c => c.numero_contrato === filterContract);
+        if (!selectedContract) return null;
+        return (
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors animate-in fade-in slide-in-from-top-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Empresa</p>
+                <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">{selectedContract.empresa}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Início da Vigência</p>
+                <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">{new Date(selectedContract.inicio_vigencia).toLocaleDateString('pt-BR')}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
