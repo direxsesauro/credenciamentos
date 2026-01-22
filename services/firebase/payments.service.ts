@@ -94,27 +94,36 @@ export const updatePayment = async (id: string, payment: Partial<PaymentRecord>)
 
         // Se não encontrar, procurar por documentos com campo 'id' interno igual ao fornecido
         if (!docSnap.exists()) {
-            const q = query(collection(db, PAYMENTS_COLLECTION));
+            const q = query(collection(db, PAYMENTS_COLLECTION), where('id', '==', id));
             const querySnapshot = await getDocs(q);
 
-            for (const document of querySnapshot.docs) {
-                const data = document.data();
-                if (data.id === id) {
-                    docRef = doc(db, PAYMENTS_COLLECTION, document.id);
-                    break;
-                }
+            if (!querySnapshot.empty) {
+                docRef = doc(db, PAYMENTS_COLLECTION, querySnapshot.docs[0].id);
+            } else {
+                throw new Error(`Pagamento com ID ${id} não encontrado`);
             }
         }
 
-        const updateData = {
-            ...payment,
+        // Preparar dados de atualização, removendo campos undefined e o campo id
+        const updateData: any = {
+            numero_contrato: payment.numero_contrato,
+            numero_nf: payment.numero_nf,
+            valor_nfe: payment.valor_nfe,
+            mes_competencia: payment.mes_competencia,
+            ano_competencia: payment.ano_competencia,
+            data_cadastro: payment.data_cadastro,
             updatedAt: Timestamp.now()
         };
 
-        // Remove o campo id se existir
-        const { id: _, ...dataWithoutId } = updateData as any;
+        // Adicionar arrays de pagamentos se existirem
+        if (payment.pagamentos_fed !== undefined) {
+            updateData.pagamentos_fed = payment.pagamentos_fed;
+        }
+        if (payment.pagamentos_est !== undefined) {
+            updateData.pagamentos_est = payment.pagamentos_est;
+        }
 
-        await updateDoc(docRef, dataWithoutId);
+        await updateDoc(docRef, updateData);
     } catch (error) {
         console.error('Erro ao atualizar pagamento:', error);
         throw error;

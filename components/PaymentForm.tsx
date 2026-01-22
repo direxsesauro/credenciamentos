@@ -73,8 +73,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, i
     const contract = contracts.find(c => c.id === selectedContractId);
     if (!contract) return;
 
+    // Se estiver editando, preservar o ID original; caso contrário, não incluir ID (será gerado)
     const payment: PaymentRecord = {
-      id: initialData?.id || Math.random().toString(36).substr(2, 9),
+      ...(initialData?.id ? { id: initialData.id } : {}),
       numero_contrato: contract.numero_contrato,
       numero_nf: numeroNf,
       valor_nfe: valorNfe,

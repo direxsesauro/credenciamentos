@@ -185,6 +185,17 @@ const AppContent: React.FC = () => {
     setCurrentView('edit-payment');
   };
 
+  const handleUpdatePayment = async (payment: PaymentRecord) => {
+    try {
+      await updatePaymentInFirestore(payment.id, payment);
+      setEditingPayment(null);
+      setCurrentView('payments');
+    } catch (error) {
+      console.error('Erro ao atualizar pagamento:', error);
+      alert('Erro ao atualizar pagamento. Verifique sua conexão e tente novamente.');
+    }
+  };
+
   const handleLaunchPayment = (contract: Contract) => {
     setSelectedContract(contract);
     setCurrentView('new-payment');
@@ -287,7 +298,7 @@ const AppContent: React.FC = () => {
               contracts={contracts}
               initialContract={null}
               initialData={editingPayment}
-              onSubmit={updatePayment}
+              onSubmit={handleUpdatePayment}
               onCancel={() => { setEditingPayment(null); setCurrentView('payments'); }}
             />
           )}
@@ -298,6 +309,10 @@ const AppContent: React.FC = () => {
               onManageAmendments={() => {
                 setAmendmentsContractId(viewingContractId);
                 setCurrentView('contract-amendments');
+              }}
+              onEditPayment={(payment) => {
+                setEditingPayment(payment);
+                setCurrentView('edit-payment');
               }}
             />
           )}

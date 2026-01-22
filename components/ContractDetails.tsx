@@ -36,14 +36,16 @@ import { getPaymentsByContract } from '../services/firebase/payments.service';
 import { useQuery } from '@tanstack/react-query';
 import { ContractPeriodsHistory } from './ContractPeriodsHistory';
 import { useToast } from "../hooks/use-toast";
+import { PaymentRecord } from '../types';
 
 interface ContractDetailsProps {
   contractId: string;
   onBack?: () => void;
   onManageAmendments?: () => void;
+  onEditPayment?: (payment: PaymentRecord) => void;
 }
 
-const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, onManageAmendments }) => {
+const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, onManageAmendments, onEditPayment }) => {
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -254,11 +256,13 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
   };
 
   const handleEditPayment = (payment: any) => {
-    toast({
-      title: "Editar Pagamento",
-      description: `Abrindo edição do pagamento`,
-    });
-    // TODO: Implementar navegação para edição
+    if (onEditPayment) {
+      onEditPayment(payment);
+    } else {
+      // Fallback: disparar evento customizado
+      const event = new CustomEvent('editPayment', { detail: payment });
+      window.dispatchEvent(event);
+    }
   };
 
   return (
