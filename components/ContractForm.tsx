@@ -5,7 +5,7 @@ import CurrencyInput from './CurrencyInput';
 
 interface ContractFormProps {
   initialData?: Contract;
-  onSubmit: (contract: Contract) => void;
+  onSubmit: (contract: Contract | Omit<Contract, 'id'>) => void;
   onCancel: () => void;
 }
 
@@ -19,7 +19,9 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
     natureza: '',
     objeto: '',
     valor_global_anul: 0,
-    inicio_vigencia: new Date().toISOString().split('T')[0]
+    valor_original: 0,
+    inicio_vigencia: new Date().toISOString().split('T')[0],
+    fim_vigencia: ''
   });
 
   useEffect(() => {
@@ -38,11 +40,19 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const contract: Contract = {
-      ...formData as Contract,
-      id: initialData?.id || Math.random().toString(36).substr(2, 9)
-    };
-    onSubmit(contract);
+    // Para novos contratos, não definir ID - será gerado pelo Firestore
+    // Para edição, usar o ID existente
+    const contract: Omit<Contract, 'id'> | Contract = initialData 
+      ? {
+          ...formData as Contract,
+          id: initialData.id,
+          valor_original: formData.valor_original || formData.valor_global_anul || 0
+        }
+      : {
+          ...formData as Omit<Contract, 'id'>,
+          valor_original: formData.valor_original || formData.valor_global_anul || 0
+        };
+    onSubmit(contract as Contract);
   };
 
   return (
@@ -119,6 +129,16 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
               value={formData.inicio_vigencia}
               onChange={handleChange}
               required
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Fim da Vigência</label>
+            <input
+              type="date"
+              name="fim_vigencia"
+              value={formData.fim_vigencia || ''}
+              onChange={handleChange}
               className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
             />
           </div>

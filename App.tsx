@@ -1,21 +1,36 @@
 
 import React, { useState, useEffect } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ViewType, Contract, PaymentRecord } from './types';
 import { useContracts } from './hooks/useContracts';
 import { usePayments } from './hooks/usePayments';
 import { migrateLocalStorageToFirestore } from './utils/migration';
+import { AuthProvider } from './components/AuthProvider';
 import Dashboard from './components/Dashboard';
 import ContractList from './components/ContractList';
 import PaymentHistory from './components/PaymentHistory';
 import PaymentForm from './components/PaymentForm';
 import ContractForm from './components/ContractForm';
 import Sidebar from './components/Sidebar';
+import { ContractAmendmentsManager } from './components/ContractAmendmentsManager';
+import ContractDetails from './components/ContractDetails';
 
-const App: React.FC = () => {
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
+  const [amendmentsContractId, setAmendmentsContractId] = useState<string | null>(null);
+  const [viewingContractId, setViewingContractId] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('sesau_theme') === 'dark';
   });
@@ -76,7 +91,9 @@ const App: React.FC = () => {
   // Contract CRUD Operations
   const handleAddContract = async (contract: Contract) => {
     try {
-      await addContractToFirestore(contract);
+      // Se o contrato tem ID (edição), remover para criar novo
+      const { id, ...contractData } = contract;
+      await addContractToFirestore(contractData);
       setCurrentView('contracts');
     } catch (error) {
       console.error('Erro ao adicionar contrato:', error);
@@ -110,6 +127,36 @@ const App: React.FC = () => {
     setEditingContract(contract);
     setCurrentView('edit-contract');
   };
+
+  const handleManageAmendments = (contract: Contract) => {
+    setAmendmentsContractId(contract.id);
+    setCurrentView('contract-amendments');
+  };
+
+  // Listener para evento de gerenciar alterações
+  useEffect(() => {
+    const handleManageAmendmentsEvent = (event: CustomEvent) => {
+      const contract = event.detail as Contract;
+      handleManageAmendments(contract);
+    };
+    window.addEventListener('manageAmendments' as any, handleManageAmendmentsEvent as EventListener);
+    return () => {
+      window.removeEventListener('manageAmendments' as any, handleManageAmendmentsEvent as EventListener);
+    };
+  }, []);
+
+  // Listener para evento de visualizar detalhes
+  useEffect(() => {
+    const handleViewContractDetails = (event: CustomEvent) => {
+      const contract = event.detail as Contract;
+      setViewingContractId(contract.id);
+      setCurrentView('contract-details');
+    };
+    window.addEventListener('viewContractDetails' as any, handleViewContractDetails as EventListener);
+    return () => {
+      window.removeEventListener('viewContractDetails' as any, handleViewContractDetails as EventListener);
+    };
+  }, []);
 
   // Payment Operations
   const addPayment = async (newPayment: any) => {
@@ -244,9 +291,39 @@ const App: React.FC = () => {
               onCancel={() => { setEditingPayment(null); setCurrentView('payments'); }}
             />
           )}
+          {currentView === 'contract-details' && viewingContractId && (
+            <ContractDetails
+              contractId={viewingContractId}
+              onBack={() => { setViewingContractId(null); setCurrentView('contracts'); }}
+              onManageAmendments={() => {
+                setAmendmentsContractId(viewingContractId);
+                setCurrentView('contract-amendments');
+              }}
+            />
+          )}
+          {currentView === 'contract-amendments' && amendmentsContractId && (
+            <ContractAmendmentsManager
+              contractId={amendmentsContractId}
+              onBack={() => {
+                setAmendmentsContractId(null);
+                setViewingContractId(amendmentsContractId);
+                setCurrentView('contract-details');
+              }}
+            />
+          )}
         </div>
       </main>
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 };
 

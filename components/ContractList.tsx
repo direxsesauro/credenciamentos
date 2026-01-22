@@ -115,6 +115,16 @@ const ContractList: React.FC<ContractListProps> = ({ contracts, payments, onLaun
                         💰
                       </button>
                       <button 
+                        onClick={() => {
+                          const event = new CustomEvent('viewContractDetails', { detail: contract });
+                          window.dispatchEvent(event);
+                        }}
+                        className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2 rounded-lg transition"
+                        title="Ver Detalhes"
+                      >
+                        👁️
+                      </button>
+                      <button 
                         onClick={() => onEdit(contract)}
                         className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2 rounded-lg transition"
                         title="Editar"

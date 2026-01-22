@@ -1,21 +1,57 @@
-# Firebase Indexes Configuration
-# Este arquivo pode ser usado para configurar índices compostos no Firestore
-
-indexes:
-  # Índice para buscar pagamentos por contrato ordenados por data
-  - collectionGroup: payments
-    queryScope: COLLECTION
-    fields:
-      - fieldPath: numero_contrato
-        order: ASCENDING
-      - fieldPath: createdAt
-        order: DESCENDING
-
-  # Índice para buscar contratos ordenados por data de criação
-  - collectionGroup: contracts
-    queryScope: COLLECTION
-    fields:
-      - fieldPath: createdAt
-        order: DESCENDING
-
-fieldOverrides: []
+{
+  "indexes": [
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "numero_contrato",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "contract_amendments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contract_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "amendment_date",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "contract_periods",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contract_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "period_number",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -1,9 +1,9 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { Progress } from './ui/progress';
+import { Separator } from './ui/separator';
 import { 
   Calendar, 
   Clock, 
@@ -26,7 +26,7 @@ import {
   hasMultiplePeriods,
   useContractPeriodsSummaryQueryKey,
   type ContractPeriodSummary
-} from '@/services/contract-periods';
+} from '../services/firebase/contract-periods.service';
 
 interface ContractPeriodsHistoryProps {
   contractId: string;

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { 
   Calendar, 
   DollarSign, 
@@ -14,8 +14,8 @@ import {
 import { TenureAmendmentForm } from './TenureAmendmentForm';
 import { ValueAmendmentForm } from './ValueAmendmentForm';
 import { AmendmentsHistory } from './AmendmentsHistory';
-import { formatCurrency, getContractWithCurrentInfo } from '@/services/contract-amendments';
-import { useAuth } from '@/components/AuthProvider';
+import { formatCurrency, getContractWithCurrentInfo } from '../services/firebase/contract-amendments.service';
+import { useAuth } from './AuthProvider';
 
 interface ContractAmendmentsManagerProps {
   contractId: string;

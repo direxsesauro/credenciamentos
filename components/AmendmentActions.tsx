@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { Button } from './ui/button';
+import { useToast } from '../hooks/use-toast';
 import { 
   Edit2, 
   Trash2, 
@@ -13,7 +13,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from './ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,11 +23,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from './ui/alert-dialog';
 import { 
   deleteTenureAmendment, 
   deleteValueAmendment 
-} from '@/services/contract-amendments';
+} from '../services/firebase/contract-amendments.service';
 
 interface AmendmentActionsProps {
   amendmentId: string;

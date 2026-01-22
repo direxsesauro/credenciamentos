@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+} from './ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { DollarSign, Plus, Minus, TrendingUp, RefreshCw } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { createValueAmendment, getContractWithCurrentInfo, type ValueAmendmentForm as ValueAmendmentFormData, formatCurrency } from '@/services/contract-amendments';
-import { useAmendmentNotifier } from '@/hooks/useContractStatusUpdater';
-import { ConfettiButton } from "@/components/magicui/confetti";
+import { useToast } from '../hooks/use-toast';
+import { createValueAmendment, getContractWithCurrentInfo, type ValueAmendmentForm as ValueAmendmentFormData, formatCurrency } from '../services/firebase/contract-amendments.service';
+import { useAmendmentNotifier } from '../hooks/useContractStatusUpdater';
+import { ConfettiButton } from "./magicui/confetti";
 
 interface ValueAmendmentFormProps {
   contractId: string;

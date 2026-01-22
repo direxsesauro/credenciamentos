@@ -4,12 +4,14 @@ import {
     getDocs,
     getDoc,
     addDoc,
+    setDoc,
     updateDoc,
     deleteDoc,
     onSnapshot,
     Timestamp,
     query,
-    orderBy
+    orderBy,
+    where
 } from 'firebase/firestore';
 import { db } from '../../firebase.config';
 import { Contract } from '../../types';
@@ -48,6 +50,7 @@ export const getContracts = async (): Promise<Contract[]> => {
  */
 export const getContractById = async (id: string): Promise<Contract | null> => {
     try {
+        // Primeiro, tentar buscar pelo ID do documento
         const docRef = doc(db, CONTRACTS_COLLECTION, id);
         const docSnap = await getDoc(docRef);
 
@@ -58,6 +61,20 @@ export const getContractById = async (id: string): Promise<Contract | null> => {
                 id: data.id || docSnap.id
             } as Contract;
         }
+
+        // Se não encontrou pelo ID do documento, tentar buscar pelo campo 'id' interno
+        const q = query(collection(db, CONTRACTS_COLLECTION), where('id', '==', id));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+            const doc = querySnapshot.docs[0];
+            const data = doc.data();
+            return {
+                ...data,
+                id: data.id || doc.id
+            } as Contract;
+        }
+
         return null;
     } catch (error) {
         console.error('Erro ao buscar contrato:', error);
@@ -71,13 +88,35 @@ export const getContractById = async (id: string): Promise<Contract | null> => {
 export const addContract = async (contract: Omit<Contract, 'id'>): Promise<string> => {
     try {
         const now = Timestamp.now();
+        // Criar documento primeiro para obter o ID
+        const docRef = doc(collection(db, CONTRACTS_COLLECTION));
+        
         const contractData: FirestoreContract = {
             ...contract,
+            id: docRef.id, // Salvar o ID do Firestore no campo id
+            valor_original: contract.valor_original || contract.valor_global_anul,
             createdAt: now,
             updatedAt: now
         };
 
-        const docRef = await addDoc(collection(db, CONTRACTS_COLLECTION), contractData);
+        await setDoc(docRef, contractData as any);
+        
+        // Criar período inicial se não existir
+        if (contract.inicio_vigencia && (contract.fim_vigencia || contract.inicio_vigencia)) {
+            try {
+                const { createContractPeriod } = await import('./contract-periods.service');
+                await createContractPeriod(
+                    docRef.id,
+                    contract.inicio_vigencia,
+                    contract.fim_vigencia || contract.inicio_vigencia,
+                    'original',
+                    contract.valor_original || contract.valor_global_anul || 0
+                );
+            } catch (periodError) {
+                console.warn('Erro ao criar período inicial:', periodError);
+            }
+        }
+        
         return docRef.id;
     } catch (error) {
         console.error('Erro ao adicionar contrato:', error);

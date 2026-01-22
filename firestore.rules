@@ -31,5 +31,27 @@ service cloud.firestore {
         'mes_competencia', 'ano_competencia'
       ]);
     }
+    
+    // Regras para coleção de alterações contratuais
+    match /contract_amendments/{amendmentId} {
+      allow read, write: if true;
+      
+      // Validação básica de dados
+      allow create: if request.resource.data.keys().hasAll([
+        'contract_id', 'type', 'amendment_type', 'amendment_date', 
+        'is_active', 'justification', 'amended_by'
+      ]);
+    }
+    
+    // Regras para coleção de períodos contratuais
+    match /contract_periods/{periodId} {
+      allow read, write: if true;
+      
+      // Validação básica de dados
+      allow create: if request.resource.data.keys().hasAll([
+        'contract_id', 'period_number', 'period_type', 
+        'start_date', 'end_date', 'period_status'
+      ]);
+    }
   }
 }

@@ -126,19 +126,52 @@ export const updatePayment = async (id: string, payment: Partial<PaymentRecord>)
  */
 export const getPaymentsByContract = async (contractNumber: string): Promise<PaymentRecord[]> => {
     try {
-        const q = query(
-            collection(db, PAYMENTS_COLLECTION),
-            where('numero_contrato', '==', contractNumber),
-            orderBy('createdAt', 'desc')
-        );
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                ...data,
-                id: data.id || doc.id
-            } as PaymentRecord;
-        });
+        // Tentar com orderBy primeiro (requer índice)
+        try {
+            const q = query(
+                collection(db, PAYMENTS_COLLECTION),
+                where('numero_contrato', '==', contractNumber),
+                orderBy('createdAt', 'desc')
+            );
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    ...data,
+                    id: data.id || doc.id
+                } as PaymentRecord;
+            });
+        } catch (indexError: any) {
+            // Se falhar por falta de índice, buscar sem orderBy e ordenar em memória
+            if (indexError.code === 'failed-precondition' && indexError.message?.includes('index')) {
+                console.warn('Índice não encontrado, buscando sem orderBy e ordenando em memória. Crie o índice para melhor performance.');
+                const q = query(
+                    collection(db, PAYMENTS_COLLECTION),
+                    where('numero_contrato', '==', contractNumber)
+                );
+                const querySnapshot = await getDocs(q);
+                const payments = querySnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        ...data,
+                        id: data.id || doc.id
+                    } as PaymentRecord;
+                });
+                
+                // Ordenar em memória por data de criação (mais recente primeiro)
+                return payments.sort((a, b) => {
+                    // Usar data_cadastro ou ano/mês de competência como fallback
+                    const dateA = a.data_cadastro 
+                        ? new Date(a.data_cadastro)
+                        : new Date(a.ano_competencia || 2000, (a.mes_competencia || 1) - 1);
+                    const dateB = b.data_cadastro 
+                        ? new Date(b.data_cadastro)
+                        : new Date(b.ano_competencia || 2000, (b.mes_competencia || 1) - 1);
+                    return dateB.getTime() - dateA.getTime();
+                });
+            }
+            throw indexError;
+        }
     } catch (error) {
         console.error('Erro ao buscar pagamentos por contrato:', error);
         throw error;

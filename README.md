@@ -29,9 +29,18 @@ Sistema de controle de pagamentos de prestadores credenciados da SESAU/RO, agora
 
 ### 4. Configurar Índices Compostos
 
+**IMPORTANTE:** O sistema requer índices compostos para funcionar corretamente.
+
 1. No Firestore Database, vá para a aba "Índices"
-2. Os índices serão criados automaticamente quando necessário
-3. Alternativamente, você pode usar o Firebase CLI para importar `firestore.indexes.json`
+2. Clique em "Criar Índice" e configure:
+   - **Coleção**: `payments`
+   - **Campos**: `numero_contrato` (Ascendente) + `createdAt` (Descendente)
+   - **Query scope**: Collection
+3. Repita para outras coleções conforme necessário
+4. Alternativamente, use o Firebase CLI: `firebase deploy --only firestore:indexes`
+5. Veja `DEPLOY_INDEXES.md` para instruções detalhadas
+
+**Nota:** O sistema funcionará sem os índices (ordenando em memória), mas será mais lento. Crie os índices para melhor performance.
 
 ### 5. Obter Credenciais do Projeto
 

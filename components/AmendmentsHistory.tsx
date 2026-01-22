@@ -1,8 +1,8 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { 
   Calendar, 
   DollarSign, 
@@ -17,10 +17,10 @@ import {
   Download
 } from 'lucide-react';
 import { AmendmentActions } from './AmendmentActions';
-import { getContractWithCurrentInfo } from '@/services/contract-amendments';
-import { getContractAmendmentsHistory, formatAmendmentType, formatCurrency } from '@/services/contract-amendments';
-import { generateContractAmendmentsReport } from '@/utils/pdfGenerator';
-import { useAuth } from '@/components/AuthProvider';
+import { getContractWithCurrentInfo } from '../services/firebase/contract-amendments.service';
+import { getContractAmendmentsHistory, formatAmendmentType, formatCurrency } from '../services/firebase/contract-amendments.service';
+import { generateContractAmendmentsReport } from '../utils/pdfGenerator';
+import { useAuth } from './AuthProvider';
 
 interface AmendmentsHistoryProps {
   contractId: string;
@@ -147,7 +147,6 @@ export const AmendmentsHistory: React.FC<AmendmentsHistoryProps> = ({ contractId
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h4 className="font-medium text-blue-900 mb-1">Valor Original</h4>
                 <p className="text-2xl font-bold text-blue-700">
-                  {/* deve mostrar o valor do campo original_value do contrato */}
                   {contractData ? formatCurrency(contractData.total_value || 0) : '-'}
                 </p>
               </div>
@@ -242,7 +241,6 @@ export const AmendmentsHistory: React.FC<AmendmentsHistoryProps> = ({ contractId
                         <div>
                           <p className="text-sm text-gray-600">Novo Valor Total</p>
                           <p className="font-medium">{formatCurrency(summary.current_value + summary.total_amendments_value)}</p>
-                          
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">Alteração</p>
