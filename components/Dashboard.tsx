@@ -342,7 +342,7 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
                 stroke="#f97316"
                 strokeWidth={1}
                 dot={{ r: 2, fill: '#f97316' }}
-              // activeDot={{ r: 6 }}
+                activeDot={{ r: 6 }}
               />
 
               <Line
