@@ -40,7 +40,7 @@ export const TenureAmendmentForm: React.FC<TenureAmendmentFormProps> = ({
   const { notifyTenureAmendment } = useAmendmentNotifier();
 
   const [formData, setFormData] = useState<TenureAmendmentFormData>({
-    amendment_type: 'extension',
+    amendment_type: 'Prorrogação',
     new_start_date: currentStartDate,
     new_end_date: currentEndDate,
     justification: '',
@@ -198,7 +198,7 @@ export const TenureAmendmentForm: React.FC<TenureAmendmentFormProps> = ({
 
 
           {/* Justificativa */}
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label htmlFor="justification">Justificativa *</Label>
             <Textarea
               id="justification"
@@ -208,16 +208,16 @@ export const TenureAmendmentForm: React.FC<TenureAmendmentFormProps> = ({
               required
               className="min-h-[100px]"
             />
-          </div>
+          </div> */}
 
           {/* Base Legal */}
           <div className="space-y-2">
-            <Label htmlFor="legal_basis">Base Legal</Label>
+            <Label htmlFor="legal_basis">Número do Termo Aditivo</Label>
             <Input
               id="legal_basis"
               value={formData.legal_basis || ''}
               onChange={(e) => handleInputChange('legal_basis', e.target.value)}
-              placeholder="Ex: Art. 57, § 1º da Lei 8.666/93"
+              placeholder="Ex: 1TACNT/2026/SESAU/PGE/2026"
             />
           </div>
 

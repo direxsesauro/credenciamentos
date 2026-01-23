@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Contract, Empenho } from '../types';
 import CurrencyInput from './CurrencyInput';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from './ui/button';
 
 interface ContractFormProps {
   initialData?: Contract;
@@ -67,23 +69,43 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
     e.preventDefault();
     // Para novos contratos, não definir ID - será gerado pelo Firestore
     // Para edição, usar o ID existente
+    // Preparar objeto do contrato, omitindo empenhos se estiver vazio
+    const contractData: any = {
+      ...formData,
+      valor_original: formData.valor_original || formData.valor_global_anul || 0,
+    };
+
+    // Incluir empenhos apenas se houver pelo menos um
+    if (empenhos.length > 0) {
+      contractData.empenhos = empenhos;
+    }
+    // Se não houver empenhos, não incluir o campo (não enviar undefined)
+
     const contract: Omit<Contract, 'id'> | Contract = initialData 
       ? {
-          ...formData as Contract,
+          ...contractData as Contract,
           id: initialData.id,
-          valor_original: formData.valor_original || formData.valor_global_anul || 0,
-          empenhos: empenhos.length > 0 ? empenhos : undefined
         }
       : {
-          ...formData as Omit<Contract, 'id'>,
-          valor_original: formData.valor_original || formData.valor_global_anul || 0,
-          empenhos: empenhos.length > 0 ? empenhos : undefined
+          ...contractData as Omit<Contract, 'id'>,
         };
     onSubmit(contract as Contract);
   };
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 max-w-4xl mx-auto overflow-hidden animate-in slide-in-from-bottom-4 duration-300 transition-colors">
+      {/* Botão de voltar */}
+      <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+        <Button 
+          variant="ghost" 
+          onClick={onCancel}
+          className="p-2"
+        >
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          Voltar
+        </Button>
+      </div>
+
       <div className="bg-slate-900 dark:bg-slate-950 p-6 text-white flex justify-between items-center transition-colors">
         <div>
           <h3 className="text-xl font-bold">{initialData ? 'Editar Contrato' : 'Cadastrar Novo Contrato'}</h3>
@@ -196,18 +218,9 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
 
         {/* Seção de Empenhos */}
         <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="text-sm font-bold uppercase text-slate-700 dark:text-slate-300 tracking-wider">Empenhos</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Adicione um ou mais empenhos associados ao contrato</p>
-            </div>
-            <button
-              type="button"
-              onClick={addEmpenho}
-              className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition shadow-md"
-            >
-              + Adicionar Empenho
-            </button>
+          <div>
+            <h4 className="text-sm font-bold uppercase text-slate-700 dark:text-slate-300 tracking-wider">Empenhos</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Adicione um ou mais empenhos associados ao contrato</p>
           </div>
 
           {empenhos.length > 0 && (
@@ -255,6 +268,18 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
               Nenhum empenho adicionado. Clique em "Adicionar Empenho" para incluir um empenho.
             </div>
           )}
+
+          {/* Botão Adicionar Empenho movido para baixo */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={addEmpenho}
+              className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition shadow-md flex items-center gap-2"
+            >
+              <span>+</span>
+              <span>Adicionar Empenho</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-4 pt-4">

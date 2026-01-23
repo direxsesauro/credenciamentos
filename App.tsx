@@ -105,7 +105,9 @@ const AppContent: React.FC = () => {
     try {
       await updateContractInFirestore(updatedContract.id, updatedContract);
       setEditingContract(null);
-      setCurrentView('contracts');
+      // Redirecionar para a página de detalhes do contrato após salvar
+      setViewingContractId(updatedContract.id);
+      setCurrentView('contract-details');
     } catch (error) {
       console.error('Erro ao atualizar contrato:', error);
       alert('Erro ao atualizar contrato. Verifique sua conexão e tente novamente.');
@@ -290,7 +292,12 @@ const AppContent: React.FC = () => {
             <ContractForm
               initialData={editingContract}
               onSubmit={handleUpdateContract}
-              onCancel={() => { setEditingContract(null); setCurrentView('contracts'); }}
+              onCancel={() => { 
+                // Voltar para a página de detalhes do contrato
+                setViewingContractId(editingContract.id);
+                setCurrentView('contract-details');
+                setEditingContract(null);
+              }}
             />
           )}
           {currentView === 'edit-payment' && editingPayment && (
@@ -306,6 +313,14 @@ const AppContent: React.FC = () => {
             <ContractDetails
               contractId={viewingContractId}
               onBack={() => { setViewingContractId(null); setCurrentView('contracts'); }}
+              onEdit={async () => {
+                // Buscar o contrato completo para edição
+                const contractToEdit = contracts.find(c => c.id === viewingContractId);
+                if (contractToEdit) {
+                  setEditingContract(contractToEdit);
+                  setCurrentView('edit-contract');
+                }
+              }}
               onManageAmendments={() => {
                 setAmendmentsContractId(viewingContractId);
                 setCurrentView('contract-amendments');

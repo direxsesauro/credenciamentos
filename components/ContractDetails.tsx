@@ -44,9 +44,10 @@ interface ContractDetailsProps {
   onBack?: () => void;
   onManageAmendments?: () => void;
   onEditPayment?: (payment: PaymentRecord) => void;
+  onEdit?: () => void;
 }
 
-const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, onManageAmendments, onEditPayment }) => {
+const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, onManageAmendments, onEditPayment, onEdit }) => {
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -437,6 +438,20 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                     {getDaysRemainingLabel(getDaysRemaining())}
                   </p>
                 </div>
+
+                {/* Botão para Editar Contrato */}
+                {onEdit && (
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700 mt-4">
+                    <Button
+                      onClick={onEdit}
+                      className="w-full flex items-center justify-center space-x-2 mb-3"
+                      variant="default"
+                    >
+                      <Edit className="h-4 w-4" />
+                      <span>Editar Contrato</span>
+                    </Button>
+                  </div>
+                )}
 
                 {/* Botão para Gerenciar Alterações */}
                 {onManageAmendments && (

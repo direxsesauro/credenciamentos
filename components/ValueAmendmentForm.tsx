@@ -44,7 +44,7 @@ export const ValueAmendmentForm: React.FC<ValueAmendmentFormProps> = ({
   });
 
   const [formData, setFormData] = useState<ValueAmendmentFormData>({
-    amendment_type: 'addition',
+    amendment_type: 'Aditivo',
     amendment_value: 0,
     percentage_applied: undefined,
     index_used: '',
@@ -127,13 +127,13 @@ export const ValueAmendmentForm: React.FC<ValueAmendmentFormProps> = ({
     handleInputChange('amendment_value', finalValue);
   };
 
-  const handleAmendmentTypeChange = (type: 'addition' | 'suppression' | 'readjustment' | 'renegotiation') => {
+  const handleAmendmentTypeChange = (type: 'Aditivo' | 'Supressão' | 'Reajuste' | 'Repactuação') => {
     handleInputChange('amendment_type', type);
     
     // Ajustar sinal do valor baseado no tipo
     if (formData.amendment_value !== 0) {
       const absoluteValue = Math.abs(formData.amendment_value);
-      const newValue = type === 'suppression' ? -absoluteValue : absoluteValue;
+      const newValue = type === 'Supressão' ? -absoluteValue : absoluteValue;
       handleInputChange('amendment_value', newValue);
     }
   };
@@ -147,10 +147,10 @@ export const ValueAmendmentForm: React.FC<ValueAmendmentFormProps> = ({
 
   const getAmendmentIcon = (type: string) => {
     switch (type) {
-      case 'addition': return <Plus className="h-4 w-4" />;
-      case 'suppression': return <Minus className="h-4 w-4" />;
-      case 'readjustment': return <TrendingUp className="h-4 w-4" />;
-      case 'renegotiation': return <RefreshCw className="h-4 w-4" />;
+      case 'Aditivo': return <Plus className="h-4 w-4" />;
+      case 'Supressão': return <Minus className="h-4 w-4" />;
+      case 'Reajuste': return <TrendingUp className="h-4 w-4" />;
+      case 'Repactuação': return <RefreshCw className="h-4 w-4" />;
       default: return <DollarSign className="h-4 w-4" />;
     }
   };
@@ -176,25 +176,25 @@ export const ValueAmendmentForm: React.FC<ValueAmendmentFormProps> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="addition">
+                <SelectItem value="Aditivo">
                   <div className="flex items-center space-x-2">
                     <Plus className="h-4 w-4 text-green-600" />
                     <span>Acréscimo de Serviços</span>
                   </div>
                 </SelectItem>
-                <SelectItem value="suppression">
+                <SelectItem value="Supressão">
                   <div className="flex items-center space-x-2">
                     <Minus className="h-4 w-4 text-red-600" />
                     <span>Supressão de Serviços</span>
                   </div>
                 </SelectItem>
-                <SelectItem value="readjustment">
+                <SelectItem value="Reajuste">
                   <div className="flex items-center space-x-2">
                     <TrendingUp className="h-4 w-4 text-blue-600" />
                     <span>Reajuste</span>
                   </div>
                 </SelectItem>
-                <SelectItem value="renegotiation">
+                <SelectItem value="Repactuação">
                   <div className="flex items-center space-x-2">
                     <RefreshCw className="h-4 w-4 text-purple-600" />
                     <span>Repactuação</span>
@@ -275,23 +275,20 @@ export const ValueAmendmentForm: React.FC<ValueAmendmentFormProps> = ({
             </p>
           </div>
 
-
-
           {/* Justificativa */}
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label htmlFor="justification">Justificativa *</Label>
             <Textarea
               id="justification"
               value={formData.justification}
               onChange={(e) => handleInputChange('justification', e.target.value)}
               placeholder="Descreva os motivos para esta alteração de valor..."
-              required
               className="min-h-[100px]"
             />
-          </div>
+          </div> */}
 
           {/* Descrição */}
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label htmlFor="description">Descrição Detalhada</Label>
             <Textarea
               id="description"
@@ -300,16 +297,17 @@ export const ValueAmendmentForm: React.FC<ValueAmendmentFormProps> = ({
               placeholder="Descreva os serviços adicionados, removidos ou alterados..."
               className="min-h-[100px]"
             />
-          </div>
+          </div> */}
+          
 
           {/* Base Legal */}
           <div className="space-y-2">
-            <Label htmlFor="legal_basis">Base Legal</Label>
+            <Label htmlFor="legal_basis">Número do Termo Aditivo</Label>
             <Input
               id="legal_basis"
               value={formData.legal_basis || ''}
               onChange={(e) => handleInputChange('legal_basis', e.target.value)}
-              placeholder="Ex: Art. 65 da Lei 8.666/93"
+              placeholder="Ex: 1TACNT/2026/SESAU/PGE/2026"
             />
           </div>
 

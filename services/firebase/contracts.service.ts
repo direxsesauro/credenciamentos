@@ -125,6 +125,20 @@ export const addContract = async (contract: Omit<Contract, 'id'>): Promise<strin
 };
 
 /**
+ * Remove campos undefined e null de um objeto (Firestore não aceita undefined)
+ */
+function removeUndefinedFields(obj: any): any {
+    const cleaned: any = {};
+    for (const key in obj) {
+        if (obj[key] !== undefined) {
+            // Se for um array vazio, manter; se for null, manter (pode ser necessário para limpar campos)
+            cleaned[key] = obj[key];
+        }
+    }
+    return cleaned;
+}
+
+/**
  * Atualizar contrato existente
  */
 export const updateContract = async (id: string, contract: Partial<Contract>): Promise<void> => {
@@ -152,10 +166,11 @@ export const updateContract = async (id: string, contract: Partial<Contract>): P
             updatedAt: Timestamp.now()
         };
 
-        // Remove o campo id se existir
+        // Remove o campo id se existir e remove campos undefined
         const { id: _, ...dataWithoutId } = updateData as any;
+        const cleanedData = removeUndefinedFields(dataWithoutId);
 
-        await updateDoc(docRef, dataWithoutId);
+        await updateDoc(docRef, cleanedData);
     } catch (error) {
         console.error('Erro ao atualizar contrato:', error);
         throw error;
