@@ -204,7 +204,7 @@ function parseCSV(csvText: string): Promise<EmpenhoFinanceiro[]> {
               continue;
             }
 
-            // Extrair as colunas financeiras
+            // Extrair as colunas financeiras e de agrupamento
             const empenho: EmpenhoFinanceiro = {
               numero_empenho: numeroEmpenho.trim(),
               empenhado: parseValue(getColumnValue(row, 'Empenhado')),
@@ -213,6 +213,10 @@ function parseCSV(csvText: string): Promise<EmpenhoFinanceiro[]> {
               saldo_empenho: parseValue(getColumnValue(row, 'Saldo Empenho')),
               pagamentos_do_exercicio: parseValue(getColumnValue(row, 'Pagamentos do Exercicio')),
               total_a_pagar: parseValue(getColumnValue(row, 'Total a Pagar')),
+              despesa: getColumnValue(row, 'DESPESA') || undefined,
+              fonte: getColumnValue(row, 'FONTE') || undefined,
+              programa: getColumnValue(row, 'PROGRAMA') || undefined,
+              acao: getColumnValue(row, 'AÇÃO') || undefined,
             };
 
             empenhos.push(empenho);

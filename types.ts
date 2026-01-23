@@ -28,6 +28,10 @@ export interface EmpenhoFinanceiro {
   saldo_empenho: number;
   pagamentos_do_exercicio: number;
   total_a_pagar: number;
+  despesa?: string;
+  fonte?: string;
+  programa?: string;
+  acao?: string;
 }
 
 export interface PaymentEntry {

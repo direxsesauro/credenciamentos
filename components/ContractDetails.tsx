@@ -551,6 +551,212 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
           </Card>
         )}
 
+        {/* Seção de Agrupamentos de Saldo Empenho */}
+        {empenhosFinanceiros.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+                <span>Agrupamentos de Empenhos</span>
+              </CardTitle>
+              <CardDescription>
+                Análise do saldo empenho agrupado por diferentes categorias
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Agrupamento por Despesa */}
+                {(() => {
+                  const agrupadoPorDespesa = empenhosFinanceiros.reduce((acc, empenho) => {
+                    const despesa = empenho.despesa || 'Não informado';
+                    if (!acc[despesa]) {
+                      acc[despesa] = 0;
+                    }
+                    acc[despesa] += empenho.saldo_empenho;
+                    return acc;
+                  }, {} as Record<string, number>);
+
+                  const itensDespesa = Object.entries(agrupadoPorDespesa)
+                    .sort((a, b) => b[1] - a[1]);
+
+                  return (
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-lg">Por Despesa</h4>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Despesa</TableHead>
+                              <TableHead className="text-right">Valor Empenho</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {itensDespesa.map(([despesa, saldo]) => (
+                              <TableRow key={despesa}>
+                                <TableCell className="font-medium">{despesa}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {formatCurrency(saldo)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="bg-gray-50 dark:bg-gray-800 font-bold">
+                              <TableCell>Total</TableCell>
+                              <TableCell className="text-right">
+                                {formatCurrency(itensDespesa.reduce((sum, [, saldo]) => sum + saldo, 0))}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Agrupamento por Fonte */}
+                {(() => {
+                  const agrupadoPorFonte = empenhosFinanceiros.reduce((acc, empenho) => {
+                    const fonte = empenho.fonte || 'Não informado';
+                    if (!acc[fonte]) {
+                      acc[fonte] = 0;
+                    }
+                    acc[fonte] += empenho.saldo_empenho;
+                    return acc;
+                  }, {} as Record<string, number>);
+
+                  const itensFonte = Object.entries(agrupadoPorFonte)
+                    .sort((a, b) => b[1] - a[1]);
+
+                  return (
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-lg">Por Fonte</h4>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Fonte</TableHead>
+                              <TableHead className="text-right">Valor Empenho</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {itensFonte.map(([fonte, saldo]) => (
+                              <TableRow key={fonte}>
+                                <TableCell className="font-medium">{fonte}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {formatCurrency(saldo)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="bg-gray-50 dark:bg-gray-800 font-bold">
+                              <TableCell>Total</TableCell>
+                              <TableCell className="text-right">
+                                {formatCurrency(itensFonte.reduce((sum, [, saldo]) => sum + saldo, 0))}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Agrupamento por Programa */}
+                {(() => {
+                  const agrupadoPorPrograma = empenhosFinanceiros.reduce((acc, empenho) => {
+                    const programa = empenho.programa || 'Não informado';
+                    if (!acc[programa]) {
+                      acc[programa] = 0;
+                    }
+                    acc[programa] += empenho.saldo_empenho;
+                    return acc;
+                  }, {} as Record<string, number>);
+
+                  const itensPrograma = Object.entries(agrupadoPorPrograma)
+                    .sort((a, b) => b[1] - a[1]);
+
+                  return (
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-lg">Por Programa</h4>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Programa</TableHead>
+                              <TableHead className="text-right">Valor Empenho</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {itensPrograma.map(([programa, saldo]) => (
+                              <TableRow key={programa}>
+                                <TableCell className="font-medium">{programa}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {formatCurrency(saldo)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="bg-gray-50 dark:bg-gray-800 font-bold">
+                              <TableCell>Total</TableCell>
+                              <TableCell className="text-right">
+                                {formatCurrency(itensPrograma.reduce((sum, [, saldo]) => sum + saldo, 0))}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Agrupamento por Ação */}
+                {(() => {
+                  const agrupadoPorAcao = empenhosFinanceiros.reduce((acc, empenho) => {
+                    const acao = empenho.acao || 'Não informado';
+                    if (!acc[acao]) {
+                      acc[acao] = 0;
+                    }
+                    acc[acao] += empenho.saldo_empenho;
+                    return acc;
+                  }, {} as Record<string, number>);
+
+                  const itensAcao = Object.entries(agrupadoPorAcao)
+                    .sort((a, b) => b[1] - a[1]);
+
+                  return (
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-lg">Por Ação</h4>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Ação</TableHead>
+                              <TableHead className="text-right">Valor Empenho</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {itensAcao.map(([acao, saldo]) => (
+                              <TableRow key={acao}>
+                                <TableCell className="font-medium">{acao}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {formatCurrency(saldo)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="bg-gray-50 dark:bg-gray-800 font-bold">
+                              <TableCell>Total</TableCell>
+                              <TableCell className="text-right">
+                                {formatCurrency(itensAcao.reduce((sum, [, saldo]) => sum + saldo, 0))}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Navigation Tabs */}
         <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
           <button
