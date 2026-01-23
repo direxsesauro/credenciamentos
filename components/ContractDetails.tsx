@@ -34,6 +34,7 @@ import { getContractById } from '../services/firebase/contracts.service';
 import { getContractWithCurrentInfo } from '../services/firebase/contract-amendments.service';
 import { getPaymentsByContract } from '../services/firebase/payments.service';
 import { getEmpenhosByNumbers } from '../services/google-drive/empenhos.service';
+import { getContractPeriodsSummary } from '../services/firebase/contract-periods.service';
 import { useQuery } from '@tanstack/react-query';
 import { ContractPeriodsHistory } from './ContractPeriodsHistory';
 import { useToast } from "../hooks/use-toast";
@@ -89,6 +90,13 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
     retryDelay: 1000,
   });
 
+  // Buscar períodos do contrato para identificar a última vigência
+  const { data: periods = [] } = useQuery({
+    queryKey: ['contract-periods', contractId],
+    queryFn: () => getContractPeriodsSummary(contractId),
+    enabled: !!contractId,
+  });
+
   if (contractLoading || paymentsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -131,8 +139,64 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
     }, 0);
   };
 
+  /**
+   * Obtém a última vigência do contrato (período ativo ou último período)
+   */
+  const getLastVigencia = () => {
+    if (periods.length === 0) {
+      // Se não há períodos, usar as datas do contrato
+      return {
+        startDate: new Date(contract.current_start_date || contract.inicio_vigencia),
+        endDate: new Date(contract.current_end_date || contract.fim_vigencia || contract.inicio_vigencia)
+      };
+    }
+
+    // Buscar período ativo ou o último período
+    const activePeriod = periods.find(p => p.period_status === 'active');
+    const lastPeriod = activePeriod || periods[periods.length - 1];
+
+    if (lastPeriod) {
+      return {
+        startDate: new Date(lastPeriod.start_date),
+        endDate: new Date(lastPeriod.end_date)
+      };
+    }
+
+    // Fallback para datas do contrato
+    return {
+      startDate: new Date(contract.current_start_date || contract.inicio_vigencia),
+      endDate: new Date(contract.current_end_date || contract.fim_vigencia || contract.inicio_vigencia)
+    };
+  };
+
+  /**
+   * Verifica se uma competência (mês/ano) está dentro da vigência
+   * Considera interseção: se qualquer parte da competência está na vigência
+   */
+  const isCompetenciaInVigencia = (mes: number, ano: number, vigencia: { startDate: Date; endDate: Date }) => {
+    const competenciaStart = new Date(ano, mes - 1, 1); // Primeiro dia do mês
+    const competenciaEnd = new Date(ano, mes, 0, 23, 59, 59); // Último dia do mês às 23:59:59
+
+    // Verifica se há interseção entre a competência e a vigência
+    // A competência está na vigência se:
+    // - O início da competência está antes do fim da vigência E
+    // - O fim da competência está depois do início da vigência
+    return competenciaStart <= vigencia.endDate && competenciaEnd >= vigencia.startDate;
+  };
+
   const getTotalApprovisioned = () => {
-    return payments.reduce((total, payment) => total + (payment.valor_nfe || 0), 0);
+    const lastVigencia = getLastVigencia();
+    
+    // Filtrar pagamentos pela última vigência baseado na competência
+    const paymentsInLastVigencia = payments.filter(payment => {
+      if (!payment.mes_competencia || !payment.ano_competencia) {
+        return false;
+      }
+      return isCompetenciaInVigencia(payment.mes_competencia, payment.ano_competencia, lastVigencia);
+    });
+
+    // Somar apenas os valores das notas fiscais dos pagamentos da última vigência
+    return paymentsInLastVigencia.reduce((total, payment) => total + (payment.valor_nfe || 0), 0);
   };
 
   const getPaymentProgress = () => {
