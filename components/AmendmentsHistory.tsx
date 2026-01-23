@@ -287,27 +287,27 @@ export const AmendmentsHistory: React.FC<AmendmentsHistoryProps> = ({ contractId
                   </div>
 
                   {/* Justificativa */}
-                  <div className="mb-3">
+                  {/* <div className="mb-3">
                     <p className="text-sm text-gray-600 mb-1">Justificativa</p>
                     <p className="text-sm bg-gray-50 p-2 rounded">
                       {amendment.justification}
                     </p>
-                  </div>
+                  </div> */}
 
                   {/* Descrição (apenas para alterações de valor) */}
-                  {amendment.type === 'value' && amendment.description && (
+                  {/* {amendment.type === 'value' && amendment.description && (
                     <div className="mb-3">
                       <p className="text-sm text-gray-600 mb-1">Descrição</p>
                       <p className="text-sm bg-gray-50 p-2 rounded">
                         {amendment.description}
                       </p>
                     </div>
-                  )}
+                  )} */}
 
                   {/* Base Legal */}
                   {amendment.legal_basis && (
                     <div className="mb-3">
-                      <p className="text-sm text-gray-600 mb-1">Base Legal</p>
+                      <p className="text-sm text-gray-600 mb-1">Termo Aditivo</p>
                       <p className="text-sm font-mono bg-blue-50 text-blue-800 p-2 rounded">
                         {amendment.legal_basis}
                       </p>
