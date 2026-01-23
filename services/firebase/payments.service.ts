@@ -223,6 +223,34 @@ export const subscribeToPayments = (
 };
 
 /**
+ * Deletar pagamento
+ */
+export const deletePayment = async (id: string): Promise<void> => {
+    try {
+        // Primeiro, tentar encontrar o documento pelo ID fornecido
+        let docRef = doc(db, PAYMENTS_COLLECTION, id);
+        let docSnap = await getDoc(docRef);
+
+        // Se não encontrar, procurar por documentos com campo 'id' interno igual ao fornecido
+        if (!docSnap.exists()) {
+            const q = query(collection(db, PAYMENTS_COLLECTION), where('id', '==', id));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                docRef = doc(db, PAYMENTS_COLLECTION, querySnapshot.docs[0].id);
+            } else {
+                throw new Error(`Pagamento com ID ${id} não encontrado`);
+            }
+        }
+
+        await deleteDoc(docRef);
+    } catch (error) {
+        console.error('Erro ao deletar pagamento:', error);
+        throw error;
+    }
+};
+
+/**
  * Listener em tempo real para pagamentos de um contrato específico
  */
 export const subscribeToPaymentsByContract = (

@@ -25,14 +25,15 @@ import {
   TrendingUp,
   Edit,
   History,
-  ExternalLink
+  ExternalLink,
+  Trash2
 } from "lucide-react";
 // import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, BarChart, Bar, Tooltip } from 'recharts';
 import { useAuth } from './AuthProvider';
 import { getContractById } from '../services/firebase/contracts.service';
 import { getContractWithCurrentInfo } from '../services/firebase/contract-amendments.service';
-import { getPaymentsByContract } from '../services/firebase/payments.service';
+import { getPaymentsByContract, deletePayment } from '../services/firebase/payments.service';
 import { getEmpenhosByNumbers } from '../services/google-drive/empenhos.service';
 import { getContractPeriodsSummary } from '../services/firebase/contract-periods.service';
 import { useQuery } from '@tanstack/react-query';
@@ -345,6 +346,31 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
       // Fallback: disparar evento customizado
       const event = new CustomEvent('editPayment', { detail: payment });
       window.dispatchEvent(event);
+    }
+  };
+
+  const handleDeletePayment = async (payment: PaymentRecord, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevenir que o clique na linha também dispare
+    
+    const competencia = `${payment.mes_competencia}/${payment.ano_competencia}`;
+    const confirmMessage = `Tem certeza que deseja excluir o pagamento da competência ${competencia}${payment.numero_nf ? ` (NF ${payment.numero_nf})` : ''}?`;
+    
+    if (window.confirm(confirmMessage)) {
+      try {
+        await deletePayment(payment.id);
+        toast({
+          title: "Pagamento excluído",
+          description: `O pagamento da competência ${competencia} foi excluído com sucesso.`,
+        });
+        // A query será atualizada automaticamente pelo React Query
+      } catch (error) {
+        console.error('Erro ao excluir pagamento:', error);
+        toast({
+          title: "Erro ao excluir",
+          description: "Não foi possível excluir o pagamento. Tente novamente.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -1041,18 +1067,29 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                           </span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditPayment(payment);
-                            }}
-                            title="Editar pagamento"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditPayment(payment);
+                              }}
+                              title="Editar pagamento"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                              onClick={(e) => handleDeletePayment(payment, e)}
+                              title="Excluir pagamento"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
