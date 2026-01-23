@@ -33,6 +33,7 @@ import { useAuth } from './AuthProvider';
 import { getContractById } from '../services/firebase/contracts.service';
 import { getContractWithCurrentInfo } from '../services/firebase/contract-amendments.service';
 import { getPaymentsByContract } from '../services/firebase/payments.service';
+import { getEmpenhosByNumbers } from '../services/google-drive/empenhos.service';
 import { useQuery } from '@tanstack/react-query';
 import { ContractPeriodsHistory } from './ContractPeriodsHistory';
 import { useToast } from "../hooks/use-toast";
@@ -68,6 +69,23 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
       return getPaymentsByContract(contractData.numero_contrato);
     },
     enabled: !!contractId,
+  });
+
+  // Buscar contrato completo para obter empenhos
+  const { data: fullContract } = useQuery({
+    queryKey: ['contract-full', contractId],
+    queryFn: () => getContractById(contractId),
+    enabled: !!contractId,
+  });
+
+  // Buscar dados financeiros dos empenhos do Google Drive
+  const numerosEmpenhos = fullContract?.empenhos?.map(e => e.numero_empenho) || [];
+  const { data: empenhosFinanceiros = [], isLoading: empenhosLoading } = useQuery({
+    queryKey: ['empenhos-financeiros', numerosEmpenhos.join(',')],
+    queryFn: () => getEmpenhosByNumbers(numerosEmpenhos),
+    enabled: numerosEmpenhos.length > 0,
+    retry: 2,
+    retryDelay: 1000,
   });
 
   if (contractLoading || paymentsLoading) {
@@ -436,6 +454,87 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
             </CardContent>
           </Card>
         </div>
+
+        {/* Seção de Empenhos */}
+        {fullContract?.empenhos && fullContract.empenhos.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <CreditCard className="h-5 w-5 text-purple-600" />
+                <span>Empenhos do Contrato</span>
+              </CardTitle>
+              <CardDescription>
+                {fullContract.empenhos.length} empenho(s) associado(s) a este contrato
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {empenhosLoading ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  Carregando dados financeiros dos empenhos...
+                </div>
+              ) : empenhosFinanceiros.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Número do Empenho</TableHead>
+                        <TableHead className="text-right">Empenhado (R$)</TableHead>
+                        <TableHead className="text-right">Reforço (R$)</TableHead>
+                        <TableHead className="text-right">Anulação (R$)</TableHead>
+                        <TableHead className="text-right">Saldo Empenho (R$)</TableHead>
+                        <TableHead className="text-right">Pagamentos do Exercício (R$)</TableHead>
+                        <TableHead className="text-right">Total a Pagar (R$)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {empenhosFinanceiros.map((empenho) => (
+                        <TableRow key={empenho.numero_empenho}>
+                          <TableCell className="font-medium">
+                            {empenho.numero_empenho}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(empenho.empenhado)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(empenho.reforco)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(empenho.anulacao)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(empenho.saldo_empenho)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(empenho.pagamentos_do_exercicio)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(empenho.total_a_pagar)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {fullContract.empenhos.map((empenho) => (
+                    <div 
+                      key={empenho.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                    >
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        {empenho.numero_empenho || 'N/A'}
+                      </span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Dados financeiros não encontrados
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Navigation Tabs */}
         <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">

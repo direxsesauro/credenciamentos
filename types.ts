@@ -12,6 +12,22 @@ export interface Contract {
   inicio_vigencia: string;
   fim_vigencia?: string; // Data de término da vigência original
   valor_original?: number; // Valor inicial antes de alterações (pode ser igual a valor_global_anul)
+  empenhos?: Empenho[]; // Array de empenhos associados ao contrato
+}
+
+export interface Empenho {
+  id: string;
+  numero_empenho: string; // N° da nota de empenho (ex: 202XNEXXXXX)
+}
+
+export interface EmpenhoFinanceiro {
+  numero_empenho: string;
+  empenhado: number;
+  reforco: number;
+  anulacao: number;
+  saldo_empenho: number;
+  pagamentos_do_exercicio: number;
+  total_a_pagar: number;
 }
 
 export interface PaymentEntry {

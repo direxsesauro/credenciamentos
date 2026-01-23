@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Contract } from '../types';
+import { Contract, Empenho } from '../types';
 import CurrencyInput from './CurrencyInput';
 
 interface ContractFormProps {
@@ -24,9 +24,20 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
     fim_vigencia: ''
   });
 
+  const createEmptyEmpenho = (): Empenho => ({
+    id: Math.random().toString(36).substr(2, 9),
+    numero_empenho: ''
+  });
+
+  const [empenhos, setEmpenhos] = useState<Empenho[]>([]);
+
   useEffect(() => {
     if (initialData) {
       setFormData(initialData);
+      // Carregar empenhos existentes ou inicializar com array vazio
+      setEmpenhos(initialData.empenhos && initialData.empenhos.length > 0 
+        ? initialData.empenhos 
+        : []);
     }
   }, [initialData]);
 
@@ -38,6 +49,20 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
     }));
   };
 
+  const addEmpenho = () => {
+    setEmpenhos([...empenhos, createEmptyEmpenho()]);
+  };
+
+  const removeEmpenho = (id: string) => {
+    setEmpenhos(empenhos.filter(e => e.id !== id));
+  };
+
+  const updateEmpenho = (id: string, field: keyof Empenho, value: any) => {
+    setEmpenhos(empenhos.map(e => 
+      e.id === id ? { ...e, [field]: value } : e
+    ));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Para novos contratos, não definir ID - será gerado pelo Firestore
@@ -46,11 +71,13 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
       ? {
           ...formData as Contract,
           id: initialData.id,
-          valor_original: formData.valor_original || formData.valor_global_anul || 0
+          valor_original: formData.valor_original || formData.valor_global_anul || 0,
+          empenhos: empenhos.length > 0 ? empenhos : undefined
         }
       : {
           ...formData as Omit<Contract, 'id'>,
-          valor_original: formData.valor_original || formData.valor_global_anul || 0
+          valor_original: formData.valor_original || formData.valor_global_anul || 0,
+          empenhos: empenhos.length > 0 ? empenhos : undefined
         };
     onSubmit(contract as Contract);
   };
@@ -165,6 +192,69 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
             required
             className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-colors"
           ></textarea>
+        </div>
+
+        {/* Seção de Empenhos */}
+        <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-bold uppercase text-slate-700 dark:text-slate-300 tracking-wider">Empenhos</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Adicione um ou mais empenhos associados ao contrato</p>
+            </div>
+            <button
+              type="button"
+              onClick={addEmpenho}
+              className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition shadow-md"
+            >
+              + Adicionar Empenho
+            </button>
+          </div>
+
+          {empenhos.length > 0 && (
+            <div className="space-y-4">
+              {empenhos.map((empenho, index) => (
+                <div 
+                  key={empenho.id}
+                  className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-4"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                      Empenho #{index + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeEmpenho(empenho.id)}
+                      className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600 font-bold text-lg leading-none"
+                      title="Remover empenho"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+                        Número do Empenho
+                      </label>
+                      <input
+                        type="text"
+                        value={empenho.numero_empenho}
+                        onChange={(e) => updateEmpenho(empenho.id, 'numero_empenho', e.target.value)}
+                        placeholder="Ex: 2024NE000123"
+                        className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {empenhos.length === 0 && (
+            <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-sm">
+              Nenhum empenho adicionado. Clique em "Adicionar Empenho" para incluir um empenho.
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-4 pt-4">

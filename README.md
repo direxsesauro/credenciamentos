@@ -64,7 +64,68 @@ Sistema de controle de pagamentos de prestadores credenciados da SESAU/RO, agora
    VITE_FIREBASE_STORAGE_BUCKET=seu-projeto.appspot.com
    VITE_FIREBASE_MESSAGING_SENDER_ID=seu-sender-id
    VITE_FIREBASE_APP_ID=seu-app-id
+   
+   # Google Drive Configuration
+   VITE_GOOGLE_DRIVE_API_KEY=sua-chave-api-google-drive-aqui
+   VITE_GOOGLE_DRIVE_FILE_ID=id-do-arquivo-csv-no-google-drive
    ```
+
+### 7. Configurar Google Drive para Empenhos
+
+O sistema busca dados financeiros dos empenhos de um arquivo CSV hospedado no Google Drive.
+
+#### 7.1. Criar API Key no Google Cloud Console
+
+1. Acesse o [Google Cloud Console](https://console.cloud.google.com/)
+2. Crie um novo projeto ou selecione um existente
+3. Vá em **APIs e Serviços** > **Biblioteca**
+4. Procure por **"Google Drive API"** e ative
+5. Vá em **APIs e Serviços** > **Credenciais**
+6. Clique em **Criar credenciais** > **Chave de API**
+7. Copie a chave gerada (será o valor de `VITE_GOOGLE_DRIVE_API_KEY`)
+
+#### 7.2. Preparar o Arquivo CSV no Google Drive
+
+1. Faça upload do arquivo `relatorio_empenhos.csv` para o Google Drive
+2. **IMPORTANTE**: Clique com o botão direito no arquivo e selecione **Compartilhar**
+3. Configure para **"Qualquer pessoa com o link pode visualizar"**
+4. Clique em **Concluído**
+
+#### 7.3. Obter o ID do Arquivo CSV
+
+**⚠️ ATENÇÃO**: Você precisa do ID do **ARQUIVO CSV**, não da pasta!
+
+**Método 1 - Pela URL do arquivo:**
+1. Abra o arquivo CSV no Google Drive
+2. A URL será algo como: `https://drive.google.com/file/d/1ABC123xyz456/view`
+3. O ID do arquivo é a parte entre `/d/` e `/view`: `1ABC123xyz456`
+4. Use apenas esse ID no `.env.local`: `VITE_GOOGLE_DRIVE_FILE_ID=1ABC123xyz456`
+
+**Método 2 - Pela URL de compartilhamento:**
+1. Clique com o botão direito no arquivo > **Obter link**
+2. A URL será algo como: `https://drive.google.com/file/d/1ABC123xyz456/view?usp=sharing`
+3. O ID do arquivo é a parte entre `/d/` e `/view`: `1ABC123xyz456`
+
+**Método 3 - Usar URL completa (o código extrai automaticamente):**
+- Você também pode colocar a URL completa, o código extrairá o ID automaticamente
+- Exemplo: `VITE_GOOGLE_DRIVE_FILE_ID=https://drive.google.com/file/d/1ABC123xyz456/view`
+
+**❌ NÃO USE:**
+- URL de pasta (ex: `https://drive.google.com/drive/folders/1eR-4rpy07fsFChsInNpBIJ3b_TNp57V3`)
+- O código precisa acessar o arquivo CSV diretamente, não a pasta
+
+#### 7.4. Verificar Configuração
+
+Após configurar, reinicie o servidor de desenvolvimento:
+```bash
+npm run dev
+```
+
+Se houver erros, verifique:
+- A API Key está correta
+- O arquivo está compartilhado publicamente
+- Você está usando o ID do arquivo CSV, não da pasta
+- O arquivo é realmente um CSV (extensão `.csv`)
 
 ## 📦 Instalação e Execução
 
