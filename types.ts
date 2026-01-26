@@ -54,8 +54,7 @@ export interface PaymentRecord {
   data_cadastro: string;
 }
 
-export type ViewType = 'dashboard' | 'contracts' | 'payments' | 'new-payment' | 'new-contract' | 'edit-contract' | 'edit-payment' | 'contract-amendments' | 'contract-details';
-
+export type ViewType = 'dashboard' | 'contracts' | 'payments' | 'new-payment' | 'new-contract' | 'edit-contract' | 'edit-payment' | 'contract-amendments' | 'contract-details' | 'regulation'
 // Tipos para Alterações Contratuais
 export type AmendmentType = 'extension' | 'early_termination' | 'addition' | 'suppression' | 'readjustment' | 'renegotiation';
 export type AmendmentCategory = 'tenure' | 'value';
@@ -132,4 +131,18 @@ export interface ContractWithCurrentInfo {
   start_date?: string;
   end_date?: string;
   total_amendments: number;
+}
+
+export interface SisregRecord {
+  codigo_solicitacao: string;
+  data_marcacao: string;
+  data_aprovacao: string;
+  codigo_unidade_executante: string;
+  nome_unidade_executante: string;
+  nome_profissional_executante: string;
+  codigo_interno_procedimento: string;
+  descricao_interna_procedimento: string;
+  status_solicitacao: string;
+  codigo_central_reguladora: string;
+  municipio_paciente_residencia?: string;
 }

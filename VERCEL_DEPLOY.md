@@ -16,6 +16,9 @@ Este guia explica como configurar as variáveis de ambiente necessárias para o 
 - `VITE_GOOGLE_DRIVE_API_KEY`
 - `VITE_GOOGLE_DRIVE_FILE_ID`
 
+### SISREG API (para Regulação)
+- `VITE_SISREG_API_KEY` - Chave de autorização da API SISREG
+
 ## 📝 Como Configurar no Vercel
 
 ### Passo 1: Acessar as Configurações do Projeto
@@ -51,6 +54,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID         [Production, Preview]
 VITE_FIREBASE_APP_ID                      [Production, Preview]
 VITE_GOOGLE_DRIVE_API_KEY                 [Production, Preview]
 VITE_GOOGLE_DRIVE_FILE_ID                 [Production, Preview]
+VITE_SISREG_API_KEY                       [Production, Preview]
 ```
 
 ### Passo 4: Fazer Novo Deploy
@@ -124,7 +128,36 @@ Total de empenhos processados: XX
 3. Verifique o console do navegador para erros específicos
 4. Verifique se o arquivo CSV tem os empenhos correspondentes aos números cadastrados no contrato
 
+### Problema: Erro ao carregar dados do SISREG
+
+**Solução**:
+1. Verifique se `VITE_SISREG_API_KEY` está configurada corretamente
+2. Verifique se a chave de API tem permissão para acessar o endpoint
+3. Verifique se as datas estão no formato correto (YYYY-MM-DD)
+4. Verifique o console do navegador para mensagens de erro específicas
+
+### Problema: Erro de CORS (Cross-Origin Resource Sharing)
+
+**Em Desenvolvimento:**
+- O proxy do Vite está configurado para contornar CORS em `localhost:3000`
+- Reinicie o servidor de desenvolvimento após alterar `vite.config.ts`
+- O proxy redireciona `/api/sisreg/*` para `https://farma.sesau.ro.gov.br/api/SisREG/*`
+
+**Em Produção:**
+- Se ocorrer erro de CORS em produção, é necessário que o setor de TI configure CORS na API para permitir requisições de `https://credenciamentos.vercel.app`
+- Alternativamente, pode ser necessário usar um proxy reverso ou backend intermediário
+- Entre em contato com o setor de TI para configurar CORS na API SISREG
+
+### Problema: Nenhum dado retornado da API SISREG
+
+**Solução**:
+1. Verifique se o código da central reguladora foi preenchido corretamente no campo de input
+2. Verifique se o intervalo de datas está correto
+3. Verifique se há dados disponíveis para o período selecionado
+4. Verifique se o código da central reguladora está no formato correto (ex: 11C000)
+
 ## 📚 Recursos Adicionais
 
 - [Documentação do Vercel sobre Variáveis de Ambiente](https://vercel.com/docs/concepts/projects/environment-variables)
 - [Documentação do Google Drive API](https://developers.google.com/drive/api/guides/about-sdk)
+- [Swagger da API SISREG](https://farma.sesau.ro.gov.br/swagger/index.html)

@@ -8,6 +8,14 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          '/api/sisreg': {
+            target: 'https://farma.sesau.ro.gov.br',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/sisreg/, '/api/SisREG'),
+            secure: true,
+          },
+        },
       },
       plugins: [react()],
       define: {
