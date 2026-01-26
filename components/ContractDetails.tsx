@@ -39,7 +39,7 @@ import { getContractPeriodsSummary } from '../services/firebase/contract-periods
 import { useQuery } from '@tanstack/react-query';
 import { ContractPeriodsHistory } from './ContractPeriodsHistory';
 import { useToast } from "../hooks/use-toast";
-import { PaymentRecord } from '../types';
+import { PaymentRecord, EmpenhoFinanceiro } from '../types';
 
 interface ContractDetailsProps {
   contractId: string;
@@ -83,13 +83,25 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
 
   // Buscar dados financeiros dos empenhos do Google Drive
   const numerosEmpenhos = fullContract?.empenhos?.map(e => e.numero_empenho) || [];
-  const { data: empenhosFinanceiros = [], isLoading: empenhosLoading } = useQuery({
+  const { data: empenhosFinanceiros = [], isLoading: empenhosLoading, error: empenhosError } = useQuery<EmpenhoFinanceiro[]>({
     queryKey: ['empenhos-financeiros', numerosEmpenhos.join(',')],
     queryFn: () => getEmpenhosByNumbers(numerosEmpenhos),
     enabled: numerosEmpenhos.length > 0,
     retry: 2,
     retryDelay: 1000,
   });
+
+  // Tratar erros de carregamento de empenhos
+  useEffect(() => {
+    if (empenhosError) {
+      console.error('Erro ao buscar empenhos financeiros:', empenhosError);
+      toast({
+        title: "Erro ao carregar empenhos",
+        description: empenhosError instanceof Error ? empenhosError.message : "Não foi possível carregar os dados financeiros dos empenhos.",
+        variant: "destructive",
+      });
+    }
+  }, [empenhosError, toast]);
 
   // Buscar períodos do contrato para identificar a última vigência
   const { data: periods = [] } = useQuery({
@@ -576,6 +588,18 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
               {empenhosLoading ? (
                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   Carregando dados financeiros dos empenhos...
+                </div>
+              ) : empenhosError ? (
+                <div className="text-center py-8">
+                  <div className="text-red-600 dark:text-red-400 font-semibold mb-2">
+                    Erro ao carregar dados financeiros
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    {empenhosError instanceof Error ? empenhosError.message : 'Erro desconhecido'}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">
+                    Verifique o console do navegador (F12) para mais detalhes.
+                  </div>
                 </div>
               ) : empenhosFinanceiros.length > 0 ? (
                 <div className="overflow-x-auto">

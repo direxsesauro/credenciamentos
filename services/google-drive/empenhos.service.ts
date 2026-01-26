@@ -52,8 +52,26 @@ async function fetchCSVFromDrive(): Promise<string> {
   const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
   const fileIdInput = import.meta.env.VITE_GOOGLE_DRIVE_FILE_ID;
 
+  // Debug: verificar se as variáveis estão definidas (sem expor valores)
+  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
   if (!apiKey || !fileIdInput) {
-    throw new Error('Google Drive API Key ou File ID não configurados. Verifique as variáveis de ambiente VITE_GOOGLE_DRIVE_API_KEY e VITE_GOOGLE_DRIVE_FILE_ID.');
+    const missingVars = [];
+    if (!apiKey) missingVars.push('VITE_GOOGLE_DRIVE_API_KEY');
+    if (!fileIdInput) missingVars.push('VITE_GOOGLE_DRIVE_FILE_ID');
+    
+    const errorMsg = isProduction 
+      ? `Variáveis de ambiente não configuradas no Vercel: ${missingVars.join(', ')}. Configure em: Settings > Environment Variables`
+      : `Google Drive API Key ou File ID não configurados. Verifique as variáveis de ambiente ${missingVars.join(' e ')}.`;
+    
+    console.error('Erro de configuração:', {
+      hasApiKey: !!apiKey,
+      hasFileId: !!fileIdInput,
+      isProduction,
+      hostname: window.location.hostname
+    });
+    
+    throw new Error(errorMsg);
   }
 
   // Extrair o ID do arquivo (pode ser uma URL completa ou apenas o ID)
@@ -64,25 +82,31 @@ async function fetchCSVFromDrive(): Promise<string> {
     throw new Error('Formato inválido do File ID. Forneça o ID do arquivo ou a URL completa do Google Drive.');
   }
 
-  // Validar que não é uma pasta (IDs de pasta geralmente começam com padrões específicos, mas não há garantia)
-  // Vamos tentar acessar e ver o que acontece
-
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
 
   try {
     const response = await fetch(url);
     
     if (!response.ok) {
+      // Log detalhado do erro para debug
+      const errorText = await response.text().catch(() => '');
+      console.error('Erro ao buscar CSV do Google Drive:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: url.replace(apiKey, '***'),
+        errorText: errorText.substring(0, 200)
+      });
+
       if (response.status === 404) {
         throw new Error(`Arquivo CSV não encontrado no Google Drive. Verifique se o File ID está correto: ${fileId}. Lembre-se: você precisa do ID do ARQUIVO CSV, não da pasta.`);
       }
       if (response.status === 403) {
-        throw new Error('Acesso negado ao arquivo. Verifique: 1) A API Key está correta, 2) O arquivo está compartilhado publicamente (qualquer pessoa com o link pode ver), 3) Você está usando o ID do arquivo CSV, não da pasta.');
+        throw new Error('Acesso negado ao arquivo. Verifique: 1) A API Key está correta e tem a URL de produção (https://credenciamentos.vercel.app) nas restrições, 2) O arquivo está compartilhado publicamente (qualquer pessoa com o link pode ver), 3) Você está usando o ID do arquivo CSV, não da pasta.');
       }
       if (response.status === 400) {
         throw new Error(`Requisição inválida. O ID fornecido pode ser de uma pasta, não de um arquivo. File ID usado: ${fileId}`);
       }
-      throw new Error(`Erro ao buscar arquivo: ${response.status} ${response.statusText}`);
+      throw new Error(`Erro ao buscar arquivo: ${response.status} ${response.statusText}. ${errorText.substring(0, 100)}`);
     }
 
     const contentType = response.headers.get('content-type');
@@ -90,9 +114,13 @@ async function fetchCSVFromDrive(): Promise<string> {
       console.warn(`Aviso: O arquivo pode não ser um CSV. Content-Type: ${contentType}`);
     }
 
-    return await response.text();
+    const csvText = await response.text();
+    console.log('CSV carregado com sucesso do Google Drive. Tamanho:', csvText.length, 'caracteres');
+    
+    return csvText;
   } catch (error) {
     if (error instanceof Error) {
+      console.error('Erro ao buscar CSV:', error.message);
       throw error;
     }
     throw new Error('Erro de rede ao buscar arquivo do Google Drive.');
