@@ -27,8 +27,7 @@ service cloud.firestore {
       
       // Validação básica de dados (opcional)
       allow create: if request.resource.data.keys().hasAll([
-        'numero_contrato', 'numero_nf', 'valor_nfe', 
-        'mes_competencia', 'ano_competencia'
+        'numero_contrato', 'invoices'
       ]);
     }
     

@@ -214,10 +214,11 @@ const AppContent: React.FC = () => {
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">SESAU/RO - Sistema de Gestão SUS</h1>
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">SESAU/RO
+            </h1>
             <p className="text-slate-500 dark:text-slate-400">Controle de Pagamentos de Prestadores Credenciados</p>
           </div>
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <button
               onClick={() => setCurrentView('new-contract')}
               className="bg-slate-800 dark:bg-slate-700 text-white px-4 py-2 rounded-lg shadow hover:bg-slate-700 dark:hover:bg-slate-600 transition flex items-center gap-2 text-sm"
@@ -230,7 +231,7 @@ const AppContent: React.FC = () => {
             >
               <span className="font-bold">+</span> Pagamento
             </button>
-          </div>
+          </div> */}
         </header>
 
         {/* Loading Indicator */}

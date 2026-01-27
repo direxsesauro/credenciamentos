@@ -145,10 +145,9 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
   };
 
   const getTotalPaid = () => {
-    return payments.reduce((total, payment) => {
-      const fed = payment.pagamentos_fed?.reduce((sum, entry) => sum + entry.valor, 0) || 0;
-      const est = payment.pagamentos_est?.reduce((sum, entry) => sum + entry.valor, 0) || 0;
-      return total + fed + est;
+    // Somar os valores da coluna "Pagamentos do Exercício (R$)" dos empenhos financeiros
+    return empenhosFinanceiros.reduce((total, empenho) => {
+      return total + (empenho.pagamentos_do_exercicio || 0);
     }, 0);
   };
 
@@ -202,14 +201,33 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
     
     // Filtrar pagamentos pela última vigência baseado na competência
     const paymentsInLastVigencia = payments.filter(payment => {
-      if (!payment.mes_competencia || !payment.ano_competencia) {
-        return false;
+      if (payment.invoices && payment.invoices.length > 0) {
+        // Verificar se alguma nota fiscal está na vigência
+        return payment.invoices.some(inv => 
+          isCompetenciaInVigencia(inv.mes_competencia, inv.ano_competencia, lastVigencia)
+        );
+      } else if ((payment as any).mes_competencia && (payment as any).ano_competencia) {
+        // Compatibilidade com dados antigos
+        return isCompetenciaInVigencia((payment as any).mes_competencia, (payment as any).ano_competencia, lastVigencia);
       }
-      return isCompetenciaInVigencia(payment.mes_competencia, payment.ano_competencia, lastVigencia);
+      return false;
     });
 
     // Somar apenas os valores das notas fiscais dos pagamentos da última vigência
-    return paymentsInLastVigencia.reduce((total, payment) => total + (payment.valor_nfe || 0), 0);
+    return paymentsInLastVigencia.reduce((total, payment) => {
+      if (payment.invoices && payment.invoices.length > 0) {
+        // Somar apenas notas fiscais na vigência
+        return total + payment.invoices
+          .filter(inv => {
+            const lastVig = getLastVigencia();
+            return isCompetenciaInVigencia(inv.mes_competencia, inv.ano_competencia, lastVig);
+          })
+          .reduce((sum, inv) => sum + inv.valor_nfe, 0);
+      } else {
+        // Compatibilidade com dados antigos
+        return total + ((payment as any).valor_nfe || 0);
+      }
+    }, 0);
   };
 
   const getPaymentProgress = () => {
@@ -283,21 +301,49 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
   const getPaymentStatusColor = (payment: any) => {
     const totalPaid = (payment.pagamentos_fed?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0) +
                      (payment.pagamentos_est?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0);
+    const totalInvoiceValue = payment.invoices 
+      ? payment.invoices.reduce((sum: number, inv: any) => sum + inv.valor_nfe, 0)
+      : ((payment as any).valor_nfe || 0);
     if (totalPaid > 0) return 'bg-green-100 text-green-800';
-    if (payment.valor_nfe > 0) return 'bg-yellow-100 text-yellow-800';
+    if (totalInvoiceValue > 0) return 'bg-yellow-100 text-yellow-800';
     return 'bg-gray-100 text-gray-800';
   };
 
   const getPaymentStatusLabel = (payment: any) => {
     const totalPaid = (payment.pagamentos_fed?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0) +
                      (payment.pagamentos_est?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0);
+    const totalInvoiceValue = payment.invoices 
+      ? payment.invoices.reduce((sum: number, inv: any) => sum + inv.valor_nfe, 0)
+      : ((payment as any).valor_nfe || 0);
     if (totalPaid > 0) return 'Pago';
-    if (payment.valor_nfe > 0) return 'Pendente';
+    if (totalInvoiceValue > 0) return 'Pendente';
     return 'Sem pagamento';
   };
 
+  /**
+   * Calcula o número de meses entre início e fim de vigência do contrato
+   */
+  const getContractMonths = () => {
+    const lastVigencia = getLastVigencia();
+    const startDate = lastVigencia.startDate;
+    const endDate = lastVigencia.endDate;
+    
+    // Calcular diferença em meses
+    const yearsDiff = endDate.getFullYear() - startDate.getFullYear();
+    const monthsDiff = endDate.getMonth() - startDate.getMonth();
+    const totalMonths = yearsDiff * 12 + monthsDiff; 
+    
+    // Se não houver data de fim válida, retornar 12 como padrão
+    if (isNaN(totalMonths) || totalMonths <= 0) {
+      return 12;
+    }
+    
+    return totalMonths;
+  };
+
   // Preparar dados para o gráfico
-  const totalInstallments = payments.length || 12; // Usar 12 como padrão se não houver pagamentos
+  const totalInstallments = payments.length || getContractMonths(); // Usar número de meses do contrato se não houver pagamentos
+  const contractMonths = getContractMonths();
   const estimatedInstallmentValue = (contract.total_value + (contract.total_amendments_value || 0)) / totalInstallments;
   
   // Agrupar pagamentos por competência
@@ -314,7 +360,10 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
     }
     
     // Somar valores
-    acc[installmentKey].totalInvoice += payment.valor_nfe || 0;
+    const totalInvoiceValue = payment.invoices 
+      ? payment.invoices.reduce((sum: number, inv: any) => sum + inv.valor_nfe, 0)
+      : ((payment as any).valor_nfe || 0);
+    acc[installmentKey].totalInvoice += totalInvoiceValue;
     const totalPaid = (payment.pagamentos_fed?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0) +
                      (payment.pagamentos_est?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0);
     acc[installmentKey].totalLiquidated += totalPaid;
@@ -364,15 +413,17 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
   const handleDeletePayment = async (payment: PaymentRecord, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevenir que o clique na linha também dispare
     
-    const competencia = `${payment.mes_competencia}/${payment.ano_competencia}`;
-    const confirmMessage = `Tem certeza que deseja excluir o pagamento da competência ${competencia}${payment.numero_nf ? ` (NF ${payment.numero_nf})` : ''}?`;
+    const invoicesInfo = payment.invoices && payment.invoices.length > 0
+      ? payment.invoices.map(inv => `${inv.numero_nf} (${inv.mes_competencia}/${inv.ano_competencia})`).join(', ')
+      : ((payment as any).numero_nf ? `${(payment as any).numero_nf} (${(payment as any).mes_competencia}/${(payment as any).ano_competencia})` : '');
+    const confirmMessage = `Tem certeza que deseja excluir o pagamento${invoicesInfo ? ` das notas fiscais: ${invoicesInfo}` : ''}?`;
     
     if (window.confirm(confirmMessage)) {
       try {
         await deletePayment(payment.id);
         toast({
           title: "Pagamento excluído",
-          description: `O pagamento da competência ${competencia} foi excluído com sucesso.`,
+          description: `O pagamento da competência ${payment.invoices[0].mes_competencia}/${payment.invoices[0].ano_competencia} foi excluído com sucesso.`,
         });
         // A query será atualizada automaticamente pelo React Query
       } catch (error) {
@@ -463,20 +514,20 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Valor Total</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Valor Global do Contrato</p>
                   <p className="text-3xl font-bold text-gray-900 dark:text-white">
                     {formatCurrency(contract.total_value + (contract.total_amendments_value || 0))}
                   </p>
                 </div>
                 
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Valor Aprovisionado (NFs Enviadas)</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Somatório de Valores de NF's</p>
                   <p className="text-xl font-bold text-blue-600">
                     {formatCurrency(getTotalApprovisioned())}
                   </p>
                   <div className="mt-2">
                     <div className="flex justify-between items-center mb-1">
-                      <p className="text-xs text-gray-500">Progresso Aprovisionado</p>
+                      <p className="text-xs text-gray-500">Progresso</p>
                       <p className="text-sm font-bold text-blue-600">{getApprovisionedProgress()}%</p>
                     </div>
                     <Progress value={getApprovisionedProgress()} className="h-2 mb-1" />
@@ -487,13 +538,13 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Valor Liquidado (Efetivamente Pago)</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Valor Pago</p>
                   <p className="text-xl font-bold text-green-600">
                     {formatCurrency(getTotalPaid())}
                   </p>
                   <div className="mt-2">
                     <div className="flex justify-between items-center mb-1">
-                      <p className="text-xs text-gray-500">Progresso Real (Liquidado)</p>
+                      <p className="text-xs text-gray-500">Progresso</p>
                       <p className="text-sm font-bold text-green-600">{getPaymentProgress()}%</p>
                     </div>
                     <Progress value={getPaymentProgress()} className="h-2" />
@@ -501,13 +552,13 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Valor Restante</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Saldo do Contrato</p>
                   <p className="text-xl font-bold text-orange-600">
-                    {formatCurrency(contract.total_value + (contract.total_amendments_value || 0) - getTotalPaid())}
+                    {formatCurrency(contract.total_value + (contract.total_amendments_value || 0) - getTotalApprovisioned())}
                   </p>
                 </div>
 
-                <div>
+                {/* <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Meta Esperada</p>
                   <p className="text-lg font-bold text-purple-600">{getExpectedProgress()}%</p>
                   <div className="mt-2">
@@ -522,12 +573,12 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                       No alvo da meta ({payments.length}/{payments.length || 12} parcelas pagas)
                     </div>
                   </div>
-                </div>
+                </div> */}
 
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Valor Estimado por Parcela</p>
                   <p className="text-xl font-bold text-purple-600">
-                    {formatCurrency(estimatedInstallmentValue)}
+                    {formatCurrency(estimatedInstallmentValue / contractMonths)}
                   </p>
                 </div>
 
@@ -1041,6 +1092,21 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                   {payments.map((payment, index) => {
                     const totalPaid = (payment.pagamentos_fed?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0) +
                                      (payment.pagamentos_est?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0);
+                    
+                    // Obter informações das notas fiscais
+                    const invoices = payment.invoices && payment.invoices.length > 0
+                      ? payment.invoices
+                      : ((payment as any).numero_nf ? [{
+                          id: 'legacy',
+                          numero_nf: (payment as any).numero_nf,
+                          valor_nfe: (payment as any).valor_nfe || 0,
+                          mes_competencia: (payment as any).mes_competencia || new Date().getMonth() + 1,
+                          ano_competencia: (payment as any).ano_competencia || new Date().getFullYear()
+                        }] : []);
+                    const totalInvoiceValue = invoices.reduce((sum, inv) => sum + inv.valor_nfe, 0);
+                    const competencias = invoices.map(inv => `${inv.mes_competencia}/${inv.ano_competencia}`).join(', ');
+                    const nfs = invoices.map(inv => inv.numero_nf).join(', ');
+                    
                     return (
                       <TableRow 
                         key={payment.id}
@@ -1050,12 +1116,12 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                       >
                         <TableCell className="font-medium">
                           <div className="flex items-center space-x-2">
-                            <span>{payment.mes_competencia}/{payment.ano_competencia}</span>
+                            <span>{competencias || '-'}</span>
                             <ExternalLink className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-all duration-200" />
                           </div>
                         </TableCell>
                         <TableCell>
-                          {payment.numero_nf || '-'}
+                          {nfs || '-'}
                         </TableCell>
                         <TableCell>
                           {payment.data_cadastro ? new Date(payment.data_cadastro).toLocaleDateString('pt-BR') : '-'}
@@ -1063,7 +1129,7 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                         <TableCell>
                           <div>
                             <span className="font-medium text-blue-600">
-                              {formatCurrency(payment.valor_nfe || 0)}
+                              {formatCurrency(totalInvoiceValue)}
                             </span>
                           </div>
                         </TableCell>
@@ -1074,9 +1140,9 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                                 <span className="font-medium text-green-600">
                                   {formatCurrency(totalPaid)}
                                 </span>
-                                {totalPaid !== payment.valor_nfe && (
+                                {totalPaid !== totalInvoiceValue && (
                                   <div className="text-xs text-orange-600">
-                                    Diferença: {formatCurrency((payment.valor_nfe || 0) - totalPaid)}
+                                    Diferença: {formatCurrency(totalInvoiceValue - totalPaid)}
                                   </div>
                                 )}
                               </>

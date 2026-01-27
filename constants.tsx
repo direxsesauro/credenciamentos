@@ -32,22 +32,31 @@ export const INITIAL_PAYMENTS: PaymentRecord[] = [
   {
     id: 'p1',
     numero_contrato: '120/SESAU/2023',
-    numero_nf: 'NF-88229',
-    valor_nfe: 450000,
+    invoices: [
+      {
+        id: 'inv1',
+        numero_nf: 'NF-88229',
+        valor_nfe: 450000,
+        mes_competencia: 1,
+        ano_competencia: 2024
+      }
+    ],
     pagamentos_fed: [
       { 
         id: 'f1', 
         valor: 200000, 
         referencia_ob: '2023OB00123', 
         data_ob: '2024-02-01', 
-        numero_empenho: '2023NE0010' 
+        numero_empenho: '2023NE0010',
+        invoice_id: 'inv1'
       },
       { 
         id: 'f2', 
         valor: 50000, 
         referencia_ob: '2023OB00124', 
         data_ob: '2024-02-05', 
-        numero_empenho: '2023NE0010' 
+        numero_empenho: '2023NE0010',
+        invoice_id: 'inv1'
       }
     ],
     pagamentos_est: [
@@ -56,11 +65,10 @@ export const INITIAL_PAYMENTS: PaymentRecord[] = [
         valor: 200000, 
         referencia_ob: '2023OB88772', 
         data_ob: '2024-02-08', 
-        numero_empenho: '2023NE0991' 
+        numero_empenho: '2023NE0991',
+        invoice_id: 'inv1'
       }
     ],
-    mes_competencia: 1,
-    ano_competencia: 2024,
     data_cadastro: '2024-02-10'
   }
 ];

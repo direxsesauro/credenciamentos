@@ -34,23 +34,29 @@ export interface EmpenhoFinanceiro {
   acao?: string;
 }
 
+export interface Invoice {
+  id: string;
+  numero_nf: string;      // N° da nota fiscal
+  valor_nfe: number;
+  mes_competencia: number;
+  ano_competencia: number;
+}
+
 export interface PaymentEntry {
   id: string;
   valor: number;
   referencia_ob: string; // N° da ordem bancária
   data_ob: string;       // Data da ordem
   numero_empenho: string; // N° da nota de empenho
+  invoice_id: string;    // ID da nota fiscal associada
 }
 
 export interface PaymentRecord {
   id: string;
   numero_contrato: string;
-  numero_nf: string;      // N° da nota fiscal
-  valor_nfe: number;
+  invoices: Invoice[];    // Array de notas fiscais
   pagamentos_fed: PaymentEntry[];
   pagamentos_est: PaymentEntry[];
-  mes_competencia: number;
-  ano_competencia: number;
   data_cadastro: string;
 }
 

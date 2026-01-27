@@ -26,17 +26,33 @@ const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments, contracts, on
         {payments.sort((a, b) => new Date(b.data_cadastro).getTime() - new Date(a.data_cadastro).getTime()).map(payment => {
           const contract = contracts.find(c => c.numero_contrato === payment.numero_contrato);
           const totalPaid = getSourceTotal(payment.pagamentos_fed) + getSourceTotal(payment.pagamentos_est);
+          
+          // Compatibilidade com dados antigos
+          const invoices = payment.invoices || (payment as any).numero_nf ? [{
+            id: 'legacy',
+            numero_nf: (payment as any).numero_nf || '',
+            valor_nfe: (payment as any).valor_nfe || 0,
+            mes_competencia: (payment as any).mes_competencia || new Date().getMonth() + 1,
+            ano_competencia: (payment as any).ano_competencia || new Date().getFullYear()
+          }] : [];
+          const totalInvoiceValue = invoices.reduce((sum, inv) => sum + inv.valor_nfe, 0);
 
           return (
             <div key={payment.id} className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden group transition-colors">
               <div className="grid grid-cols-1 md:grid-cols-4 items-stretch">
                 {/* Meta Column */}
                 <div className="p-6 border-r border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 transition-colors">
-                  <div className="text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-1">Competência</div>
-                  <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{MONTHS[payment.mes_competencia - 1]} / {payment.ano_competencia}</div>
-
-                  <div className="mt-4 text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-1">Nota Fiscal</div>
-                  <div className="text-md font-bold text-blue-600 dark:text-blue-400">{payment.numero_nf}</div>
+                  <div className="text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-1">Notas Fiscais</div>
+                  <div className="space-y-2">
+                    {invoices.map((inv, idx) => (
+                      <div key={inv.id || idx} className="text-sm">
+                        <div className="font-bold text-blue-600 dark:text-blue-400">{inv.numero_nf}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-500">
+                          {MONTHS[inv.mes_competencia - 1]}/{inv.ano_competencia}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
 
                   <div className="mt-4 text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-1">Lançado em</div>
                   <div className="text-xs text-slate-600 dark:text-slate-500">{new Date(payment.data_cadastro).toLocaleString('pt-BR')}</div>
@@ -90,10 +106,10 @@ const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments, contracts, on
                 <div className="p-6 bg-slate-900 dark:bg-slate-800/80 text-white flex flex-col justify-center text-center transition-colors">
                   <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Total Liquidado</div>
                   <div className="text-2xl font-black">{formatCurrency(totalPaid)}</div>
-                  <div className="text-[10px] text-slate-500 mt-2">Valor NF: {formatCurrency(payment.valor_nfe)}</div>
+                  <div className="text-[10px] text-slate-500 mt-2">Valor Total NF: {formatCurrency(totalInvoiceValue)}</div>
                   <div className="mt-4 pt-4 border-t border-slate-800 dark:border-slate-700">
-                    <span className={`text-[10px] px-2 py-1 rounded font-bold ${totalPaid >= payment.valor_nfe ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                      {totalPaid >= payment.valor_nfe ? 'TOTALMENTE PAGO' : 'PAGAMENTO PARCIAL'}
+                    <span className={`text-[10px] px-2 py-1 rounded font-bold ${totalPaid >= totalInvoiceValue ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                      {totalPaid >= totalInvoiceValue ? 'TOTALMENTE PAGO' : 'PAGAMENTO PARCIAL'}
                     </span>
                   </div>
                   <div className="mt-4">

@@ -1,11 +1,13 @@
 
 import React, { useState, useMemo } from 'react';
-import { Contract, PaymentRecord } from '../types';
+import { Contract, PaymentRecord, EmpenhoFinanceiro } from '../types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Line, ComposedChart
 } from 'recharts';
 import { MONTHS } from '../constants';
+import { useQuery } from '@tanstack/react-query';
+import { getEmpenhosByNumbers } from '../services/google-drive/empenhos.service';
 
 interface DashboardProps {
   contracts: Contract[];
@@ -22,7 +24,18 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   const axisColor = isDarkMode ? '#94a3b8' : '#64748b';
   const gridColor = isDarkMode ? '#1e293b' : '#f1f5f9';
 
-  const years = useMemo(() => Array.from(new Set(payments.map(p => p.ano_competencia.toString()))).sort().reverse(), [payments]);
+  const years = useMemo(() => {
+    const allYears = new Set<string>();
+    payments.forEach(p => {
+      if (p.invoices && p.invoices.length > 0) {
+        p.invoices.forEach(inv => allYears.add(inv.ano_competencia.toString()));
+      } else if ((p as any).ano_competencia) {
+        // Compatibilidade com dados antigos
+        allYears.add((p as any).ano_competencia.toString());
+      }
+    });
+    return Array.from(allYears).sort().reverse();
+  }, [payments]);
 
   // Contratos filtrados por empresa (para o dropdown de contratos)
   const contractsForDropdown = contracts;
@@ -42,17 +55,49 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   const filteredPayments = useMemo(() => {
     return payments.filter(p => {
       const matchesContract = filterContract === 'all' || p.numero_contrato === filterContract;
-      const matchesYear = filterYear === 'all' || p.ano_competencia.toString() === filterYear;
-      return matchesContract && matchesYear;
+      if (filterYear === 'all') return matchesContract;
+      
+      // Verificar se alguma nota fiscal do pagamento corresponde ao ano filtrado
+      if (p.invoices && p.invoices.length > 0) {
+        const hasMatchingYear = p.invoices.some(inv => inv.ano_competencia.toString() === filterYear);
+        return matchesContract && hasMatchingYear;
+      } else if ((p as any).ano_competencia) {
+        // Compatibilidade com dados antigos
+        return matchesContract && (p as any).ano_competencia.toString() === filterYear;
+      }
+      return false;
     });
   }, [payments, filterContract, filterYear]);
 
   const monthlyData = useMemo(() => {
     const data = MONTHS.map((month, index) => {
-      const monthPayments = filteredPayments.filter(p => p.mes_competencia === index + 1);
+      // Filtrar pagamentos que têm notas fiscais neste mês
+      const monthPayments = filteredPayments.filter(p => {
+        if (p.invoices && p.invoices.length > 0) {
+          return p.invoices.some(inv => inv.mes_competencia === index + 1);
+        } else if ((p as any).mes_competencia) {
+          // Compatibilidade com dados antigos
+          return (p as any).mes_competencia === index + 1;
+        }
+        return false;
+      });
+      
       const fed = monthPayments.reduce((acc, p) => acc + p.pagamentos_fed.reduce((v, e) => v + e.valor, 0), 0);
       const est = monthPayments.reduce((acc, p) => acc + p.pagamentos_est.reduce((v, e) => v + e.valor, 0), 0);
-      const nfe = monthPayments.reduce((acc, p) => acc + p.valor_nfe, 0);
+      
+      // Somar todas as notas fiscais deste mês
+      const nfe = monthPayments.reduce((acc, p) => {
+        if (p.invoices && p.invoices.length > 0) {
+          return acc + p.invoices
+            .filter(inv => inv.mes_competencia === index + 1)
+            .reduce((sum, inv) => sum + inv.valor_nfe, 0);
+        } else if ((p as any).mes_competencia === index + 1) {
+          // Compatibilidade com dados antigos
+          return acc + ((p as any).valor_nfe || 0);
+        }
+        return acc;
+      }, 0);
+      
       return {
         name: month,
         fed,
@@ -63,14 +108,63 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
       };
     });
 
-    // Encontra o index do primeiro mês que possui uma ordem bancária (total > 0)
-    const firstMonthWithData = data.findIndex(d => d.total > 0);
-    return firstMonthWithData === -1 ? data : data.slice(firstMonthWithData);
-  }, [filteredPayments, expectedMonthlyValue]);
+    // Determinar o mês inicial do gráfico
+    let startMonthIndex = 0;
+    
+    // Se um contrato específico está selecionado, usar o mês de início da vigência
+    if (filterContract !== 'all') {
+      const selectedContract = contracts.find(c => c.numero_contrato === filterContract);
+      if (selectedContract && selectedContract.inicio_vigencia) {
+        const startDate = new Date(selectedContract.inicio_vigencia);
+        const startMonth = startDate.getMonth(); // 0-11 (janeiro = 0)
+        const startYear = startDate.getFullYear();
+        
+        // Verificar se o ano de início corresponde ao ano filtrado
+        if (filterYear === 'all' || startYear.toString() === filterYear) {
+          startMonthIndex = startMonth; // Usar o mês de início (0-11, convertido para índice do array)
+        }
+      }
+    } else {
+      // Se não há contrato específico, usar o primeiro mês com dados
+      const firstMonthWithData = data.findIndex(d => d.total > 0);
+      if (firstMonthWithData !== -1) {
+        startMonthIndex = firstMonthWithData;
+      }
+    }
 
+    return data.slice(startMonthIndex);
+  }, [filteredPayments, expectedMonthlyValue, filterContract, filterYear, contracts]);
+
+  // Coletar todos os números de empenhos dos contratos filtrados
+  const numerosEmpenhos = useMemo(() => {
+    const empenhosSet = new Set<string>();
+    filteredContractsForExpected.forEach(contract => {
+      contract.empenhos?.forEach(empenho => {
+        empenhosSet.add(empenho.numero_empenho);
+      });
+    });
+    return Array.from(empenhosSet);
+  }, [filteredContractsForExpected]);
+
+  // Buscar dados financeiros dos empenhos cadastrados na aplicação
+  const { data: empenhosFinanceiros = [] } = useQuery<EmpenhoFinanceiro[]>({
+    queryKey: ['empenhos-financeiros-dashboard', numerosEmpenhos.join(',')],
+    queryFn: () => getEmpenhosByNumbers(numerosEmpenhos),
+    enabled: numerosEmpenhos.length > 0,
+    retry: 2,
+    retryDelay: 1000,
+  });
+
+  // Calcular totalPaid a partir dos empenhos financeiros cadastrados na aplicação
+  const totalPaid = useMemo(() => {
+    return empenhosFinanceiros.reduce((total, empenho) => {
+      return total + (empenho.pagamentos_do_exercicio || 0);
+    }, 0);
+  }, [empenhosFinanceiros]);
+
+  // Manter totalFed e totalEst para o gráfico de pizza (mas não usar para totalPaid)
   const totalFed = useMemo(() => filteredPayments.reduce((acc, p) => acc + p.pagamentos_fed.reduce((v, e) => v + e.valor, 0), 0), [filteredPayments]);
   const totalEst = useMemo(() => filteredPayments.reduce((acc, p) => acc + p.pagamentos_est.reduce((v, e) => v + e.valor, 0), 0), [filteredPayments]);
-  const totalPaid = totalFed + totalEst;
 
   // Calculo do Valor Total dos Contratos Selecionados
   const totalContractValue = useMemo(() => {
@@ -151,32 +245,50 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
     }[] = [];
 
     filteredPayments.forEach(payment => {
+      // Obter informações da nota fiscal associada a cada entrada
+      const getInvoiceInfo = (invoiceId: string) => {
+        if (payment.invoices && payment.invoices.length > 0) {
+          const invoice = payment.invoices.find(inv => inv.id === invoiceId);
+          if (invoice) {
+            return { nf: invoice.numero_nf, mes: invoice.mes_competencia, ano: invoice.ano_competencia };
+          }
+        }
+        // Fallback para dados antigos
+        return {
+          nf: (payment as any).numero_nf || '',
+          mes: (payment as any).mes_competencia || new Date().getMonth() + 1,
+          ano: (payment as any).ano_competencia || new Date().getFullYear()
+        };
+      };
+      
       // Federal
       payment.pagamentos_fed.forEach(entry => {
+        const invoiceInfo = getInvoiceInfo(entry.invoice_id);
         obs.push({
           id: `${payment.id}-fed-${entry.id}`,
           referencia_ob: entry.referencia_ob,
           data_ob: entry.data_ob,
           numero_empenho: entry.numero_empenho,
-          nf: payment.numero_nf,
+          nf: invoiceInfo.nf,
           source: 'Federal',
-          mes: payment.mes_competencia,
-          ano: payment.ano_competencia,
+          mes: invoiceInfo.mes,
+          ano: invoiceInfo.ano,
           valor: entry.valor,
           time: parseDateToTime(entry.data_ob)
         });
       });
       // Estadual
       payment.pagamentos_est.forEach(entry => {
+        const invoiceInfo = getInvoiceInfo(entry.invoice_id);
         obs.push({
           id: `${payment.id}-est-${entry.id}`,
           referencia_ob: entry.referencia_ob,
           data_ob: entry.data_ob,
           numero_empenho: entry.numero_empenho,
-          nf: payment.numero_nf,
+          nf: invoiceInfo.nf,
           source: 'Estadual',
-          mes: payment.mes_competencia,
-          ano: payment.ano_competencia,
+          mes: invoiceInfo.mes,
+          ano: invoiceInfo.ano,
           valor: entry.valor,
           time: parseDateToTime(entry.data_ob)
         });

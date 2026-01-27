@@ -107,10 +107,7 @@ export const updatePayment = async (id: string, payment: Partial<PaymentRecord>)
         // Preparar dados de atualização, removendo campos undefined e o campo id
         const updateData: any = {
             numero_contrato: payment.numero_contrato,
-            numero_nf: payment.numero_nf,
-            valor_nfe: payment.valor_nfe,
-            mes_competencia: payment.mes_competencia,
-            ano_competencia: payment.ano_competencia,
+            invoices: payment.invoices,
             data_cadastro: payment.data_cadastro,
             updatedAt: Timestamp.now()
         };
@@ -169,13 +166,17 @@ export const getPaymentsByContract = async (contractNumber: string): Promise<Pay
                 
                 // Ordenar em memória por data de criação (mais recente primeiro)
                 return payments.sort((a, b) => {
-                    // Usar data_cadastro ou ano/mês de competência como fallback
+                    // Usar data_cadastro ou primeira nota fiscal como fallback
                     const dateA = a.data_cadastro 
                         ? new Date(a.data_cadastro)
-                        : new Date(a.ano_competencia || 2000, (a.mes_competencia || 1) - 1);
+                        : (a.invoices && a.invoices.length > 0 
+                            ? new Date(a.invoices[0].ano_competencia || 2000, (a.invoices[0].mes_competencia || 1) - 1)
+                            : new Date(2000, 0));
                     const dateB = b.data_cadastro 
                         ? new Date(b.data_cadastro)
-                        : new Date(b.ano_competencia || 2000, (b.mes_competencia || 1) - 1);
+                        : (b.invoices && b.invoices.length > 0 
+                            ? new Date(b.invoices[0].ano_competencia || 2000, (b.invoices[0].mes_competencia || 1) - 1)
+                            : new Date(2000, 0));
                     return dateB.getTime() - dateA.getTime();
                 });
             }
