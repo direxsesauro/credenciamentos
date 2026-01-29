@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Contract, PaymentRecord, PaymentEntry, Invoice } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Contract, PaymentRecord, PaymentEntry, Invoice, FontePagadora } from '../types';
 import { MONTHS } from '../constants';
 import CurrencyInput from './CurrencyInput';
-import { getPagamentoByOB } from '../services/google-drive/pagamentos.service';
 
 interface PaymentFormProps {
   contracts: Contract[];
@@ -33,14 +32,12 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, i
     referencia_ob: '',
     data_ob: new Date().toISOString().split('T')[0],
     numero_empenho: '',
-    invoice_id: '' // Inicialmente vazio, será selecionado
+    invoice_id: '',
+    fonte: 'estadual'
   });
 
   // Unificar todas as ordens bancárias em uma única lista (removendo separação Federal/Estadual)
   const [entries, setEntries] = useState<PaymentEntry[]>([createEmptyEntry()]);
-  const [loadingOB, setLoadingOB] = useState<{ [key: string]: boolean }>({});
-  const [autoFilledOBs, setAutoFilledOBs] = useState<{ [key: string]: boolean }>({});
-  const debounceTimers = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   // Carregar dados iniciais se estiver editando
   useEffect(() => {
@@ -65,13 +62,13 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, i
         }]);
       }
 
-      // Carregar ordens bancárias existentes (unificar fed e est)
+      // Carregar ordens bancárias existentes (unificar fed e est, marcando a fonte de cada uma)
       const allEntries: PaymentEntry[] = [];
       if (initialData.pagamentos_fed && initialData.pagamentos_fed.length > 0) {
-        allEntries.push(...initialData.pagamentos_fed);
+        allEntries.push(...initialData.pagamentos_fed.map(e => ({ ...e, fonte: 'federal' as FontePagadora })));
       }
       if (initialData.pagamentos_est && initialData.pagamentos_est.length > 0) {
-        allEntries.push(...initialData.pagamentos_est);
+        allEntries.push(...initialData.pagamentos_est.map(e => ({ ...e, fonte: (e.fonte || 'estadual') as FontePagadora })));
       }
       if (allEntries.length > 0) {
         setEntries(allEntries);
@@ -102,90 +99,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, i
     setEntries(entries.map(e => e.id === id ? { ...e, [field]: value } : e));
   };
 
-  // Buscar dados do pagamento quando o número da OB for digitado (com debounce)
-  const handleOBChange = async (entryId: string, obValue: string) => {
-    // Atualizar o campo primeiro
-    updateEntry(entryId, 'referencia_ob', obValue);
-
-    // Limpar timer anterior se existir
-    if (debounceTimers.current[entryId]) {
-      clearTimeout(debounceTimers.current[entryId]);
-    }
-
-    // Se o valor estiver vazio, limpar campos e marcar como não preenchido
-    const obNormalizado = obValue.trim().toUpperCase();
-    if (!obNormalizado) {
-      setEntries(prevEntries => 
-        prevEntries.map(e => 
-          e.id === entryId 
-            ? { ...e, data_ob: new Date().toISOString().split('T')[0], numero_empenho: '', valor: 0 }
-            : e
-        )
-      );
-      setAutoFilledOBs(prev => ({ ...prev, [entryId]: false }));
-      return;
-    }
-
-    // Se o valor for muito curto ou não contiver "OB", não buscar ainda
-    if (obNormalizado.length < 5 || !obNormalizado.includes('OB')) {
-      return;
-    }
-
-    // Debounce: aguardar 800ms após o usuário parar de digitar
-    debounceTimers.current[entryId] = setTimeout(async () => {
-      // Marcar como carregando
-      setLoadingOB(prev => ({ ...prev, [entryId]: true }));
-
-      try {
-        console.log('Buscando pagamento para OB:', obNormalizado);
-        const pagamento = await getPagamentoByOB(obNormalizado);
-        console.log('Resultado da busca:', pagamento);
-        
-        if (pagamento) {
-          // Preencher automaticamente os campos usando setEntries para garantir atualização correta
-          setEntries(prevEntries => 
-            prevEntries.map(e => 
-              e.id === entryId 
-                ? { 
-                    ...e, 
-                    data_ob: pagamento.data || e.data_ob,
-                    numero_empenho: pagamento.numero_empenho || '',
-                    valor: pagamento.valor || 0
-                  }
-                : e
-            )
-          );
-          // Marcar que esta OB foi preenchida automaticamente
-          setAutoFilledOBs(prev => ({ ...prev, [entryId]: true }));
-          console.log('Campos preenchidos automaticamente:', {
-            data_ob: pagamento.data,
-            numero_empenho: pagamento.numero_empenho,
-            valor: pagamento.valor
-          });
-        } else {
-          console.warn(`Ordem bancária ${obNormalizado} não encontrada no relatório de pagamentos.`);
-          setAutoFilledOBs(prev => ({ ...prev, [entryId]: false }));
-        }
-      } catch (error) {
-        console.error('Erro ao buscar dados da ordem bancária:', error);
-        setAutoFilledOBs(prev => ({ ...prev, [entryId]: false }));
-        // Mostrar erro ao usuário
-        if (error instanceof Error) {
-          alert(`Erro ao buscar dados da ordem bancária: ${error.message}`);
-        }
-      } finally {
-        setLoadingOB(prev => ({ ...prev, [entryId]: false }));
-      }
-    }, 800);
-  };
-
-  // Limpar timers ao desmontar
-  useEffect(() => {
-    return () => {
-      Object.values(debounceTimers.current).forEach(timer => clearTimeout(timer));
-    };
-  }, []);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const contract = contracts.find(c => c.id === selectedContractId);
@@ -210,14 +123,16 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, i
     // Filtrar apenas entradas válidas
     const validEntries = entries.filter(e => e.valor > 0 || e.referencia_ob);
 
-    // Se estiver editando, preservar o ID original; caso contrário, não incluir ID (será gerado)
-    // Manter compatibilidade: colocar todos os pagamentos em pagamentos_est e deixar pagamentos_fed vazio
+    // Separar por fonte: Federal e Estadual (entradas sem fonte vão para Estadual)
+    const pagamentos_fed = validEntries.filter(e => e.fonte === 'federal');
+    const pagamentos_est = validEntries.filter(e => e.fonte !== 'federal'); // estadual ou undefined (compatibilidade)
+
     const payment: PaymentRecord = {
       id: initialData?.id || '',
       numero_contrato: contract.numero_contrato,
       invoices: validInvoices,
-      pagamentos_fed: [], // Mantido vazio para compatibilidade
-      pagamentos_est: validEntries, // Todos os pagamentos unificados aqui
+      pagamentos_fed,
+      pagamentos_est,
       data_cadastro: initialData?.data_cadastro || new Date().toISOString()
     };
 
@@ -352,6 +267,17 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, i
           <div className="space-y-3">
             {entries.map((entry) => (
               <div key={entry.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/20 transition-colors">
+                <div className="md:col-span-1 space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">Fonte *</label>
+                  <select
+                    value={entry.fonte ?? 'estadual'}
+                    onChange={(e) => updateEntry(entry.id, 'fonte', e.target.value as FontePagadora)}
+                    className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors"
+                  >
+                    <option value="estadual">Estadual</option>
+                    <option value="federal">Federal</option>
+                  </select>
+                </div>
                 <div className="md:col-span-2 space-y-1">
                   <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">Nota Fiscal *</label>
                   <select
@@ -369,96 +295,40 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contracts, initialContract, i
                       ))}
                   </select>
                 </div>
-                <div className="md:col-span-3 space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">
-                    N° Ordem Bancária (OB) {loadingOB[entry.id] && <span className="text-xs text-blue-500">(buscando...)</span>}
-                  </label>
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">N° OB</label>
                   <input
                     placeholder="202XOBXXXXX"
                     value={entry.referencia_ob}
-                    onChange={(e) => handleOBChange(entry.id, e.target.value)}
-                    onBlur={(e) => {
-                      // Também buscar ao perder o foco, caso não tenha encontrado antes
-                      if (e.target.value.trim() && !entry.numero_empenho) {
-                        handleOBChange(entry.id, e.target.value);
-                      }
-                    }}
+                    onChange={(e) => updateEntry(entry.id, 'referencia_ob', e.target.value)}
                     className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors"
                   />
                 </div>
                 <div className="md:col-span-2 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">
-                      Data da OB
-                      {autoFilledOBs[entry.id] && <span className="text-green-500 ml-1" title="Preenchido automaticamente">✓</span>}
-                    </label>
-                    {autoFilledOBs[entry.id] && (
-                      <button
-                        type="button"
-                        onClick={() => setAutoFilledOBs(prev => ({ ...prev, [entry.id]: false }))}
-                        className="text-xs text-blue-500 hover:text-blue-700"
-                        title="Permitir edição manual"
-                      >
-                        Editar
-                      </button>
-                    )}
-                  </div>
+                  <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">Data da OB</label>
                   <input
                     type="date"
                     value={entry.data_ob}
                     onChange={(e) => updateEntry(entry.id, 'data_ob', e.target.value)}
-                    disabled={autoFilledOBs[entry.id]}
-                    className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900"
+                    className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors"
                   />
                 </div>
                 <div className="md:col-span-2 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">
-                      N° Empenho (NE)
-                      {autoFilledOBs[entry.id] && <span className="text-green-500 ml-1" title="Preenchido automaticamente">✓</span>}
-                    </label>
-                    {autoFilledOBs[entry.id] && (
-                      <button
-                        type="button"
-                        onClick={() => setAutoFilledOBs(prev => ({ ...prev, [entry.id]: false }))}
-                        className="text-xs text-blue-500 hover:text-blue-700"
-                        title="Permitir edição manual"
-                      >
-                        Editar
-                      </button>
-                    )}
-                  </div>
+                  <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">N° Empenho (NE)</label>
                   <input
                     placeholder="202XNEXXXXX"
                     value={entry.numero_empenho}
                     onChange={(e) => updateEntry(entry.id, 'numero_empenho', e.target.value)}
-                    disabled={autoFilledOBs[entry.id]}
-                    className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900"
+                    className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors"
                   />
                 </div>
                 <div className="md:col-span-2 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">
-                      Valor Pago (R$)
-                      {autoFilledOBs[entry.id] && <span className="text-green-500 ml-1" title="Preenchido automaticamente">✓</span>}
-                    </label>
-                    {autoFilledOBs[entry.id] && (
-                      <button
-                        type="button"
-                        onClick={() => setAutoFilledOBs(prev => ({ ...prev, [entry.id]: false }))}
-                        className="text-xs text-blue-500 hover:text-blue-700"
-                        title="Permitir edição manual"
-                      >
-                        Editar
-                      </button>
-                    )}
-                  </div>
+                  <label className="text-[10px] uppercase font-bold text-blue-400 dark:text-blue-500/60">Valor Pago (R$)</label>
                   <CurrencyInput
                     value={entry.valor}
                     onChange={(value) => updateEntry(entry.id, 'valor', value)}
                     placeholder="R$ 0,00"
-                    disabled={autoFilledOBs[entry.id]}
-                    className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900"
+                    className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 dark:text-slate-100 rounded-lg focus:outline-blue-400 text-sm transition-colors"
                   />
                 </div>
                 <div className="md:col-span-1 text-right pb-1">

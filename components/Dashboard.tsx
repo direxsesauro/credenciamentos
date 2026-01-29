@@ -3,7 +3,9 @@ import React, { useState, useMemo } from 'react';
 import { Contract, PaymentRecord, EmpenhoFinanceiro } from '../types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area, Line, ComposedChart
+  PieChart, Pie, Cell, AreaChart, Area, Line, ComposedChart,
+  RadialBarChart, RadialBar, PolarAngleAxis,
+  ReferenceDot
 } from 'recharts';
 import { MONTHS } from '../constants';
 import { useQuery } from '@tanstack/react-query';
@@ -70,39 +72,58 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   }, [payments, filterContract, filterYear]);
 
   const monthlyData = useMemo(() => {
+    const monthNumToIndex = (index: number) => index + 1; // 1-12
+
     const data = MONTHS.map((month, index) => {
-      // Filtrar pagamentos que têm notas fiscais neste mês
-      const monthPayments = filteredPayments.filter(p => {
-        if (p.invoices && p.invoices.length > 0) {
-          return p.invoices.some(inv => inv.mes_competencia === index + 1);
-        } else if ((p as any).mes_competencia) {
-          // Compatibilidade com dados antigos
-          return (p as any).mes_competencia === index + 1;
-        }
-        return false;
+      const mesCompetencia = monthNumToIndex(index);
+
+      // Total Pago na Competência: somar valor de cada OB pela competência da NF associada à OB
+      // Cada ordem bancária conta apenas no mês/ano da sua nota fiscal (invoice_id -> mes_competencia, ano_competencia)
+      let fed = 0;
+      let est = 0;
+
+      filteredPayments.forEach(p => {
+        const getInvoice = (invoiceId: string) => p.invoices?.find(inv => inv.id === invoiceId);
+
+        (p.pagamentos_fed || []).forEach(entry => {
+          const inv = getInvoice(entry.invoice_id);
+          const matchYear = filterYear === 'all' || (inv && inv.ano_competencia.toString() === filterYear);
+          const matchMonth = inv && inv.mes_competencia === mesCompetencia;
+          if (matchMonth && matchYear) {
+            fed += entry.valor;
+          }
+        });
+
+        (p.pagamentos_est || []).forEach(entry => {
+          const inv = getInvoice(entry.invoice_id);
+          const matchYear = filterYear === 'all' || (inv && inv.ano_competencia.toString() === filterYear);
+          const matchMonth = inv && inv.mes_competencia === mesCompetencia;
+          if (matchMonth && matchYear) {
+            est += entry.valor;
+          }
+        });
       });
-      
-      const fed = monthPayments.reduce((acc, p) => acc + p.pagamentos_fed.reduce((v, e) => v + e.valor, 0), 0);
-      const est = monthPayments.reduce((acc, p) => acc + p.pagamentos_est.reduce((v, e) => v + e.valor, 0), 0);
-      
-      // Somar todas as notas fiscais deste mês
-      const nfe = monthPayments.reduce((acc, p) => {
+
+      const total = fed + est;
+
+      // Valor das Notas Fiscais: soma dos valor_nfe das NFs com competência = este mês/ano
+      const nfe = filteredPayments.reduce((acc, p) => {
         if (p.invoices && p.invoices.length > 0) {
           return acc + p.invoices
-            .filter(inv => inv.mes_competencia === index + 1)
+            .filter(inv => inv.mes_competencia === mesCompetencia && (filterYear === 'all' || inv.ano_competencia.toString() === filterYear))
             .reduce((sum, inv) => sum + inv.valor_nfe, 0);
-        } else if ((p as any).mes_competencia === index + 1) {
-          // Compatibilidade com dados antigos
+        }
+        if ((p as any).mes_competencia === mesCompetencia && (filterYear === 'all' || (p as any).ano_competencia?.toString() === filterYear)) {
           return acc + ((p as any).valor_nfe || 0);
         }
         return acc;
       }, 0);
-      
+
       return {
         name: month,
         fed,
         est,
-        total: fed + est,
+        total,
         nfe,
         expected: expectedMonthlyValue
       };
@@ -166,14 +187,61 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   const totalFed = useMemo(() => filteredPayments.reduce((acc, p) => acc + p.pagamentos_fed.reduce((v, e) => v + e.valor, 0), 0), [filteredPayments]);
   const totalEst = useMemo(() => filteredPayments.reduce((acc, p) => acc + p.pagamentos_est.reduce((v, e) => v + e.valor, 0), 0), [filteredPayments]);
 
+  // Somatório das notas fiscais (valor_nfe de todas as NFs dos pagamentos filtrados)
+  const totalNotasFiscais = useMemo(() => {
+    return filteredPayments.reduce((acc, p) => {
+      if (p.invoices && p.invoices.length > 0) {
+        return acc + p.invoices.reduce((s, inv) => s + (inv.valor_nfe || 0), 0);
+      }
+      return acc + ((p as any).valor_nfe || 0);
+    }, 0);
+  }, [filteredPayments]);
+
+  // Média do valor das notas fiscais por mês (competências distintas)
+  const mediaNotasFiscaisPorMes = useMemo(() => {
+    const meses = new Set<string>();
+    filteredPayments.forEach(p => {
+      if (p.invoices && p.invoices.length > 0) {
+        p.invoices.forEach(inv => meses.add(`${inv.ano_competencia}-${inv.mes_competencia}`));
+      } else if ((p as any).ano_competencia != null && (p as any).mes_competencia != null) {
+        meses.add(`${(p as any).ano_competencia}-${(p as any).mes_competencia}`);
+      }
+    });
+    const qtdMeses = meses.size;
+    return qtdMeses > 0 ? totalNotasFiscais / qtdMeses : 0;
+  }, [filteredPayments, totalNotasFiscais]);
+
+  // Dados do gráfico de evolução + mês extra "Média" com marcador do valor médio das NFs
+  const chartEvolutionData = useMemo(() => [
+    ...monthlyData,
+    { name: 'Média', total: 0, fed: 0, est: 0, nfe: mediaNotasFiscaisPorMes, expected: expectedMonthlyValue }
+  ], [monthlyData, mediaNotasFiscaisPorMes, expectedMonthlyValue]);
+
+  // Total somado das ordens bancárias (OBs) lançadas no sistema
+  const totalFromOBs = useMemo(() => totalFed + totalEst, [totalFed, totalEst]);
+
   // Calculo do Valor Total dos Contratos Selecionados
   const totalContractValue = useMemo(() => {
     return filteredContractsForExpected.reduce((acc, c) => acc + c.valor_global_anul, 0);
   }, [filteredContractsForExpected]);
 
+  // Consumo do contrato pelas NFs (%): (somatório NFs / valor global) * 100
+  const consumoPercent = useMemo(() => {
+    if (totalContractValue <= 0) return 0;
+    return Math.min(100, (totalNotasFiscais / totalContractValue) * 100);
+  }, [totalNotasFiscais, totalContractValue]);
+
+  // Restante: valor global do contrato menos somatório das NFs
+  const restanteContratoMenosNFs = useMemo(() => totalContractValue - totalNotasFiscais, [totalContractValue, totalNotasFiscais]);
+
+  // Dados para o gráfico de progresso circular (consumo NFs / contrato)
+  const radialProgressData = useMemo(() => [
+    { name: 'Consumo', value: Math.round(consumoPercent * 10) / 10, fill: '#10b981' }
+  ], [consumoPercent]);
+
   // Calculo do Restante a Pagar (Total do Contrato - Total Pago calculado pelos empenhos)
   const remainingToPay = useMemo(() => {
-    return totalContractValue - totalPaid;
+    return totalNotasFiscais - totalPaid;
   }, [totalContractValue, totalPaid]);
 
   const pieData = [
@@ -354,29 +422,48 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
+        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center justify-center text-center">
           <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Valor do Contrato</p>
           <h3 className="text-xl lg:text-2xl font-bold text-slate-700 dark:text-slate-200 mt-1">{formatCurrency(totalContractValue)}</h3>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
-          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Restante a Pagar</p>
-          <h3 className="text-xl lg:text-2xl font-bold text-amber-600 dark:text-amber-500 mt-1">{formatCurrency(remainingToPay)}</h3>
+
+
+        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center justify-center text-center">
+          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Valor das Notas Fiscais</p>
+          <h3 className="text-xl lg:text-2xl font-bold text-blue-600 dark:text-blue-500 mt-1">{formatCurrency(totalNotasFiscais)}</h3>
+          <p className="text-slate-500 dark:text-slate-500 text-xs mt-2.5">Média por mês: {formatCurrency(mediaNotasFiscaisPorMes)}</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
-          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Pago (Federal)</p>
-          <h3 className="text-xl lg:text-2xl font-bold text-blue-600 dark:text-blue-500 mt-1">{formatCurrency(totalFed)}</h3>
+        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center">
+          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium mb-1">Consumo do contrato (NFs)</p>
+          <div className="relative w-full flex-1 min-h-[140px] flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={140}>
+              <RadialBarChart cx="50%" cy="50%" innerRadius="55%" outerRadius="85%" barSize={12} data={radialProgressData} startAngle={90} endAngle={-270}>
+                <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                <RadialBar background dataKey="value" cornerRadius={6} />
+              </RadialBarChart>
+            </ResponsiveContainer>
+            <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-emerald-600 dark:text-emerald-500 pointer-events-none">
+              {consumoPercent.toFixed(1)}%
+            </span>
+          </div>
+          <p className="mt-2 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-sm font-semibold text-emerald-700 dark:text-emerald-400 text-center">
+            Saldo Contratual: {formatCurrency(restanteContratoMenosNFs)}
+          </p>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
-          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Pago (Estadual)</p>
-          <h3 className="text-xl lg:text-2xl font-bold text-emerald-600 dark:text-emerald-500 mt-1">{formatCurrency(totalEst)}</h3>
-        </div>
+        
 
-        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
+        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center justify-center text-center">
           <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Total Pago</p>
           <h3 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{formatCurrency(totalPaid)}</h3>
+          <p className="text-slate-500 dark:text-slate-400 text-xs mt-1.5">Ordens bancárias: {formatCurrency(totalFromOBs)}</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center justify-center text-center">
+          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Restante a Pagar</p>
+          <h3 className="text-xl lg:text-2xl font-bold text-red-600 dark:text-amber-500 mt-1">{formatCurrency(remainingToPay)}</h3>
         </div>
       </div>
 
@@ -404,7 +491,7 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
         </div>
         <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={monthlyData}>
+            <ComposedChart data={chartEvolutionData}>
               <defs>
                 <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -456,6 +543,17 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
                 strokeDasharray="5 5"
                 dot={false}
                 activeDot={false}
+              />
+
+              <ReferenceDot
+                x="Média"
+                y={mediaNotasFiscaisPorMes}
+                r={8}
+                fill="#ccc"
+                // cor cinza claro
+                stroke="#ccc"
+                strokeWidth={2}
+                label={{ value: formatCurrency(mediaNotasFiscaisPorMes), position: 'left', fontSize: 10, fill: axisColor }}
               />
             </ComposedChart>
           </ResponsiveContainer>
