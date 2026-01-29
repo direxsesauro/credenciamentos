@@ -1089,10 +1089,7 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((payment, index) => {
-                    const totalPaid = (payment.pagamentos_fed?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0) +
-                                     (payment.pagamentos_est?.reduce((sum: number, e: any) => sum + e.valor, 0) || 0);
-                    
+                  {payments.flatMap((payment, paymentIndex) => {
                     // Obter informações das notas fiscais
                     const invoices = payment.invoices && payment.invoices.length > 0
                       ? payment.invoices
@@ -1103,86 +1100,114 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                           mes_competencia: (payment as any).mes_competencia || new Date().getMonth() + 1,
                           ano_competencia: (payment as any).ano_competencia || new Date().getFullYear()
                         }] : []);
-                    const totalInvoiceValue = invoices.reduce((sum, inv) => sum + inv.valor_nfe, 0);
-                    const competencias = invoices.map(inv => `${inv.mes_competencia}/${inv.ano_competencia}`).join(', ');
-                    const nfs = invoices.map(inv => inv.numero_nf).join(', ');
                     
-                    return (
-                      <TableRow 
-                        key={payment.id}
-                        className="group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                        onClick={() => handleEditPayment(payment)}
-                        title="Clique para editar este pagamento"
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center space-x-2">
-                            <span>{competencias || '-'}</span>
-                            <ExternalLink className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-all duration-200" />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {nfs || '-'}
-                        </TableCell>
-                        <TableCell>
-                          {payment.data_cadastro ? new Date(payment.data_cadastro).toLocaleDateString('pt-BR') : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <span className="font-medium text-blue-600">
-                              {formatCurrency(totalInvoiceValue)}
+                    // Se não houver invoices, retornar uma linha vazia ou com dados do payment
+                    if (invoices.length === 0) {
+                      return (
+                        <TableRow key={payment.id}>
+                          <TableCell colSpan={7} className="text-center text-gray-500">
+                            Pagamento sem notas fiscais
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                    
+                    // Para cada invoice, criar uma linha separada
+                    return invoices.map((invoice, invoiceIndex) => {
+                      // Calcular valor pago relacionado a esta invoice específica
+                      const invoicePaid = [
+                        ...(payment.pagamentos_fed || []),
+                        ...(payment.pagamentos_est || [])
+                      ]
+                        .filter(entry => entry.invoice_id === invoice.id)
+                        .reduce((sum, entry) => sum + (entry.valor || 0), 0);
+                      
+                      // Determinar status para esta invoice
+                      const invoiceStatus = invoicePaid > 0 
+                        ? 'Pago' 
+                        : (invoice.valor_nfe > 0 ? 'Pendente' : 'Sem pagamento');
+                      
+                      const invoiceStatusColor = invoicePaid > 0
+                        ? 'bg-green-100 text-green-800'
+                        : (invoice.valor_nfe > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800');
+                      
+                      return (
+                        <TableRow 
+                          key={`${payment.id}-${invoice.id}-${invoiceIndex}`}
+                          className="group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                          onClick={() => handleEditPayment(payment)}
+                          title="Clique para editar este pagamento"
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center space-x-2">
+                              <span>{invoice.mes_competencia}/{invoice.ano_competencia}</span>
+                              <ExternalLink className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-all duration-200" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {invoice.numero_nf || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {payment.data_cadastro ? new Date(payment.data_cadastro).toLocaleDateString('pt-BR') : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <span className="font-medium text-blue-600">
+                                {formatCurrency(invoice.valor_nfe || 0)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              {invoicePaid > 0 ? (
+                                <>
+                                  <span className="font-medium text-green-600">
+                                    {formatCurrency(invoicePaid)}
+                                  </span>
+                                  {invoicePaid !== invoice.valor_nfe && (
+                                    <div className="text-xs text-orange-600">
+                                      Diferença: {formatCurrency((invoice.valor_nfe || 0) - invoicePaid)}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-gray-400">Pendente</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`inline-block px-2 py-1 text-xs rounded-full ${invoiceStatusColor}`}>
+                              {invoiceStatus}
                             </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            {totalPaid > 0 ? (
-                              <>
-                                <span className="font-medium text-green-600">
-                                  {formatCurrency(totalPaid)}
-                                </span>
-                                {totalPaid !== totalInvoiceValue && (
-                                  <div className="text-xs text-orange-600">
-                                    Diferença: {formatCurrency(totalInvoiceValue - totalPaid)}
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-gray-400">Pendente</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-block px-2 py-1 text-xs rounded-full ${getPaymentStatusColor(payment)}`}>
-                            {getPaymentStatusLabel(payment)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditPayment(payment);
-                              }}
-                              title="Editar pagamento"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-                              onClick={(e) => handleDeletePayment(payment, e)}
-                              title="Excluir pagamento"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditPayment(payment);
+                                }}
+                                title="Editar pagamento"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                                onClick={(e) => handleDeletePayment(payment, e)}
+                                title="Excluir pagamento"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
                   })}
                 </TableBody>
               </Table>

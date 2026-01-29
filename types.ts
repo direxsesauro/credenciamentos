@@ -34,6 +34,19 @@ export interface EmpenhoFinanceiro {
   acao?: string;
 }
 
+export interface PagamentoFinanceiro {
+  documento: string; // N° da ordem bancária (ex: 2025OB165482)
+  data: string; // Data da OB (formato YYYY-MM-DD)
+  numero_empenho: string; // N° do empenho (coluna DOC.ORIG.NE)
+  valor: number; // Valor pago (coluna MOVIMENTO)
+  unidade?: string;
+  fonte_recurso?: string;
+  despesa?: string;
+  numero_processo?: string;
+  credor?: string;
+  historico?: string;
+}
+
 export interface Invoice {
   id: string;
   numero_nf: string;      // N° da nota fiscal

@@ -171,20 +171,10 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
     return filteredContractsForExpected.reduce((acc, c) => acc + c.valor_global_anul, 0);
   }, [filteredContractsForExpected]);
 
-  // Calculo do Restante a Pagar (Total do Contrato - Total Pago Geral dos Contratos selecionados [ignorando filtro de ano])
+  // Calculo do Restante a Pagar (Total do Contrato - Total Pago calculado pelos empenhos)
   const remainingToPay = useMemo(() => {
-    // Precisamos pegar TODOS os pagamentos dos contratos selecionados, independente do ano
-    const contractNumbers = filteredContractsForExpected.map(c => c.numero_contrato);
-    const allRelatedPayments = payments.filter(p => contractNumbers.includes(p.numero_contrato));
-
-    const paidAllTime = allRelatedPayments.reduce((acc, p) => {
-      const fed = p.pagamentos_fed.reduce((v, e) => v + e.valor, 0);
-      const est = p.pagamentos_est.reduce((v, e) => v + e.valor, 0);
-      return acc + fed + est;
-    }, 0);
-
-    return totalContractValue - paidAllTime;
-  }, [payments, filteredContractsForExpected, totalContractValue]);
+    return totalContractValue - totalPaid;
+  }, [totalContractValue, totalPaid]);
 
   const pieData = [
     { name: 'Fonte Federal', value: totalFed },
