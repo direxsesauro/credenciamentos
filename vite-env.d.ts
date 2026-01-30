@@ -10,6 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_DRIVE_API_KEY: string
   readonly VITE_GOOGLE_DRIVE_FILE_ID: string
   readonly VITE_GOOGLE_DRIVE_PAGAMENTOS_FILE_ID: string
+  readonly VITE_GOOGLE_DRIVE_JSON_REG_ID: string
   readonly VITE_SISREG_API_KEY: string
   readonly DEV: boolean
   readonly MODE: string

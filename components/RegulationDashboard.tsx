@@ -17,26 +17,24 @@ const RegulationDashboard: React.FC<RegulationDashboardProps> = ({ isDarkMode })
   const { toast } = useToast();
   const [dateRange, setDateRange] = useState({ gte: '', lte: '' });
   const [codigoCentralReguladora, setCodigoCentralReguladora] = useState('');
+  const [tamanho, setTamanho] = useState(100);
 
-  // Query para buscar dados da API
+  // Query para buscar dados da API (endpoint agendamento-ambulatorial-data-solicitacao)
   const { 
     data: apiData = [], 
     isLoading, 
     error,
     refetch 
   } = useQuery<SisregRecord[]>({
-    queryKey: ['sisreg-agendamentos', dateRange.gte, dateRange.lte, codigoCentralReguladora],
+    queryKey: ['sisreg-agendamentos', dateRange.gte, dateRange.lte, codigoCentralReguladora, tamanho],
     queryFn: async () => {
       if (!dateRange.gte || !dateRange.lte || !codigoCentralReguladora.trim()) {
         return [];
       }
       
-      // Garantir que as datas estão no formato YYYY-MM-DD
-      // Inputs type="date" já retornam YYYY-MM-DD, mas garantimos aqui também
       const dataInicio = dateRange.gte.trim();
       const dataFim = dateRange.lte.trim();
       
-      // Validar formato básico
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(dataInicio) || !dateRegex.test(dataFim)) {
         throw new Error('Formato de data inválido. As datas devem estar no formato YYYY-MM-DD.');
@@ -46,6 +44,7 @@ const RegulationDashboard: React.FC<RegulationDashboardProps> = ({ isDarkMode })
         dataInicio,
         dataFim,
         codigoCentralReguladora: codigoCentralReguladora.trim(),
+        tamanho,
       });
     },
     enabled: !!dateRange.gte && !!dateRange.lte && !!codigoCentralReguladora.trim(),
@@ -121,11 +120,11 @@ const RegulationDashboard: React.FC<RegulationDashboardProps> = ({ isDarkMode })
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-blue-100 text-xs font-semibold mb-1 uppercase">
-                Código da Central Reguladora
+                Unidade Reguladora
               </label>
               <input 
                 type="text" 
-                placeholder="Ex: 11C000"
+                placeholder="Ex: 110020"
                 className="w-full bg-blue-700 border-none rounded-lg p-2 text-sm focus:ring-2 focus:ring-white outline-none placeholder-blue-300"
                 value={codigoCentralReguladora}
                 onChange={(e) => setCodigoCentralReguladora(e.target.value)}
@@ -160,7 +159,7 @@ const RegulationDashboard: React.FC<RegulationDashboardProps> = ({ isDarkMode })
             Preencha os campos acima para consultar os agendamentos
           </p>
           <p className="text-slate-400 dark:text-slate-500 text-sm">
-            Informe o código da central reguladora e selecione o intervalo de datas
+            Informe a unidade reguladora (ex: 110020) e selecione o intervalo de datas
           </p>
         </div>
       </div>
@@ -174,14 +173,14 @@ const RegulationDashboard: React.FC<RegulationDashboardProps> = ({ isDarkMode })
           <h2 className="text-xl font-bold mb-2">Monitoramento de Agendamentos (SISREG)</h2>
           <p className="text-blue-100 text-sm">Consultas via API REST - Marcação Ambulatorial</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
           <div>
             <label className="block text-blue-100 text-xs font-semibold mb-1 uppercase">
-              Código da Central Reguladora
+              Unidade Reguladora
             </label>
             <input 
               type="text" 
-              placeholder="Ex: 11C000"
+              placeholder="Ex: 110020"
               className="w-full bg-blue-700 border-none rounded-lg p-2 text-sm focus:ring-2 focus:ring-white outline-none placeholder-blue-300"
               value={codigoCentralReguladora}
               onChange={(e) => setCodigoCentralReguladora(e.target.value)}
@@ -207,6 +206,19 @@ const RegulationDashboard: React.FC<RegulationDashboardProps> = ({ isDarkMode })
               className="w-full bg-blue-700 border-none rounded-lg p-2 text-sm focus:ring-2 focus:ring-white outline-none"
               value={dateRange.lte}
               onChange={(e) => setDateRange(prev => ({ ...prev, lte: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="block text-blue-100 text-xs font-semibold mb-1 uppercase">
+              Limite por data
+            </label>
+            <input 
+              type="number" 
+              min={1}
+              max={1000}
+              className="w-full bg-blue-700 border-none rounded-lg p-2 text-sm focus:ring-2 focus:ring-white outline-none"
+              value={tamanho}
+              onChange={(e) => setTamanho(Math.min(1000, Math.max(1, Number(e.target.value) || 100)))}
             />
           </div>
           {error && (

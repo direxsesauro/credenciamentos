@@ -55,6 +55,8 @@ export interface Invoice {
   ano_competencia: number;
 }
 
+export type FontePagadora = 'federal' | 'estadual';
+
 export interface PaymentEntry {
   id: string;
   valor: number;
@@ -62,6 +64,7 @@ export interface PaymentEntry {
   data_ob: string;       // Data da ordem
   numero_empenho: string; // N° da nota de empenho
   invoice_id: string;    // ID da nota fiscal associada
+  fonte?: FontePagadora; // Fonte pagadora: Federal ou Estadual
 }
 
 export interface PaymentRecord {
@@ -73,7 +76,7 @@ export interface PaymentRecord {
   data_cadastro: string;
 }
 
-export type ViewType = 'dashboard' | 'contracts' | 'payments' | 'new-payment' | 'new-contract' | 'edit-contract' | 'edit-payment' | 'contract-amendments' | 'contract-details' | 'regulation'
+export type ViewType = 'dashboard' | 'contracts' | 'payments' | 'new-payment' | 'new-contract' | 'edit-contract' | 'edit-payment' | 'contract-amendments' | 'contract-details' | 'regulation' | 'approvals'
 // Tipos para Alterações Contratuais
 export type AmendmentType = 'extension' | 'early_termination' | 'addition' | 'suppression' | 'readjustment' | 'renegotiation';
 export type AmendmentCategory = 'tenure' | 'value';
@@ -164,4 +167,17 @@ export interface SisregRecord {
   status_solicitacao: string;
   codigo_central_reguladora: string;
   municipio_paciente_residencia?: string;
+}
+
+/** Registro de aprovação (JSON regulação no Drive): dados para filtros e métricas */
+export interface ApprovalRecord {
+  codigo_solicitacao: string | number;
+  data_solicitacao: string;
+  data_aprovacao: string;
+  nome_unidade_executante: string;
+  descricao_sigtap_procedimento: string;
+  type: string;
+  status_solicitacao?: string;
+  codigo_unidade_executante?: string;
+  [key: string]: unknown;
 }

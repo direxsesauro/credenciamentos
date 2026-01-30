@@ -15,6 +15,7 @@ import Sidebar from './components/Sidebar';
 import { ContractAmendmentsManager } from './components/ContractAmendmentsManager';
 import ContractDetails from './components/ContractDetails';
 import RegulationDashboard from './components/RegulationDashboard';
+import ApprovalsPage from './components/ApprovalsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -345,6 +346,9 @@ const AppContent: React.FC = () => {
           )}
           {currentView === 'regulation' && (
             <RegulationDashboard isDarkMode={isDarkMode} />
+          )}
+          {currentView === 'approvals' && (
+            <ApprovalsPage isDarkMode={isDarkMode} />
           )}
         </div>
       </main>

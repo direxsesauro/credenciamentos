@@ -15,6 +15,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isDarkMode, tog
     { id: 'contracts', label: 'Contratos', icon: '📜' },
     { id: 'payments', label: 'Pagamentos', icon: '💸' },
     { id: 'regulation', label: 'Regulação', icon: '🏥' },
+    { id: 'approvals', label: 'Aprovações', icon: '✓' },
     { id: 'new-payment', label: 'Novo Evento', icon: '➕' },
   ];
 
