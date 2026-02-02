@@ -21,14 +21,29 @@ function getDurationHours(solicitacao: string, aprovacao: string): number | null
 
 function formatDuration(hours: number | null): string {
   if (hours === null) return '—';
-  if (hours < 1) return `${Math.round(hours * 60)} min`;
-  if (hours < 24) return `${hours.toFixed(1)} h`;
-  return `${(hours / 24).toFixed(1)} dias`;
+  if (hours < 1) return `${Math.floor(hours * 60)} min`;
+  if (hours < 24) return `${Math.floor(hours)} h`;
+  return `${Math.floor(hours / 24)} dias`;
 }
 
 function toDateOnly(iso: string): string {
   if (!iso) return '';
   return iso.slice(0, 10);
+}
+
+/** Retorna chave do mês "YYYY-MM" para agregação. */
+function toMonthKey(iso: string): string {
+  if (!iso) return '';
+  return iso.slice(0, 7);
+}
+
+/** Formata "YYYY-MM" para exibição no eixo (ex.: "Jan/2026"). */
+function formatMonthLabel(monthKey: string): string {
+  if (!monthKey || monthKey.length < 7) return monthKey;
+  const [year, month] = monthKey.split('-');
+  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const m = parseInt(month, 10);
+  return `${monthNames[m - 1] ?? month}/${year}`;
 }
 
 interface ApprovalsPageProps {
@@ -38,6 +53,7 @@ interface ApprovalsPageProps {
 const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
   const { toast } = useToast();
   const [filterUnidade, setFilterUnidade] = useState('');
+  const [filterProcedimentoSigtap, setFilterProcedimentoSigtap] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -61,14 +77,38 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
     }
   }, [error, toast]);
 
+  // Opções de unidade: influenciadas pelo filtro de procedimento (só unidades que têm o procedimento selecionado)
   const unidadeOptions = useMemo(() => {
+    let source = apiData;
+    if (filterProcedimentoSigtap) {
+      source = apiData.filter(
+        (r) => (r.descricao_sigtap_procedimento || '').trim() === filterProcedimentoSigtap
+      );
+    }
     const set = new Set<string>();
-    apiData.forEach((r) => {
+    source.forEach((r) => {
       const u = (r.nome_unidade_executante || '').trim();
       if (u) set.add(u);
     });
     return Array.from(set).sort();
-  }, [apiData]);
+  }, [apiData, filterProcedimentoSigtap]);
+
+  // Opções de procedimento SIGTAP: influenciadas pelo filtro de unidade (só procedimentos da unidade digitada)
+  const procedimentoSigtapOptions = useMemo(() => {
+    let source = apiData;
+    if (filterUnidade.trim()) {
+      const q = filterUnidade.trim().toLowerCase();
+      source = apiData.filter((r) =>
+        (r.nome_unidade_executante || '').toLowerCase().includes(q)
+      );
+    }
+    const set = new Set<string>();
+    source.forEach((r) => {
+      const p = (r.descricao_sigtap_procedimento || '').trim();
+      if (p) set.add(p);
+    });
+    return Array.from(set).sort();
+  }, [apiData, filterUnidade]);
 
   const unidadeSuggestions = useMemo(() => {
     if (!filterUnidade.trim()) return unidadeOptions.slice(0, 30);
@@ -79,12 +119,20 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
   }, [unidadeOptions, filterUnidade]);
 
   const data = useMemo(() => {
-    if (!filterUnidade.trim()) return apiData;
-    const q = filterUnidade.trim().toLowerCase();
-    return apiData.filter((item) =>
-      (item.nome_unidade_executante || '').toLowerCase().includes(q)
-    );
-  }, [apiData, filterUnidade]);
+    let result = apiData;
+    if (filterUnidade.trim()) {
+      const q = filterUnidade.trim().toLowerCase();
+      result = result.filter((item) =>
+        (item.nome_unidade_executante || '').toLowerCase().includes(q)
+      );
+    }
+    if (filterProcedimentoSigtap) {
+      result = result.filter(
+        (item) => (item.descricao_sigtap_procedimento || '').trim() === filterProcedimentoSigtap
+      );
+    }
+    return result;
+  }, [apiData, filterUnidade, filterProcedimentoSigtap]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -102,15 +150,16 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
       .filter((h): h is number => h !== null);
   }, [data]);
 
+  // Apresentar o número inteiro sem arredondamento
   const durationMedia = durationHoursList.length
-    ? durationHoursList.reduce((a, b) => a + b, 0) / durationHoursList.length
+    ? Math.round(durationHoursList.reduce((a, b) => a + b, 0) / durationHoursList.length)
     : null;
 
   const chartDataByDateSolicitacao = useMemo(() => {
     const map: Record<string, number> = {};
     data.forEach((item) => {
-      const d = toDateOnly(item.data_solicitacao || '');
-      if (d) map[d] = (map[d] || 0) + 1;
+      const monthKey = toMonthKey(item.data_solicitacao || '');
+      if (monthKey) map[monthKey] = (map[monthKey] || 0) + 1;
     });
     return Object.entries(map)
       .map(([date, count]) => ({ date, count }))
@@ -120,8 +169,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
   const chartDataByDateAprovacao = useMemo(() => {
     const map: Record<string, number> = {};
     data.forEach((item) => {
-      const d = toDateOnly(item.data_aprovacao || '');
-      if (d) map[d] = (map[d] || 0) + 1;
+      const monthKey = toMonthKey(item.data_aprovacao || '');
+      if (monthKey) map[monthKey] = (map[monthKey] || 0) + 1;
     });
     return Object.entries(map)
       .map(([date, count]) => ({ date, count }))
@@ -140,14 +189,15 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
       .slice(0, 10);
   }, [data]);
 
-  const typeData = useMemo(() => {
-    const map: Record<string, number> = {};
-    data.forEach((item) => {
-      const t = item.type || '(vazio)';
-      map[t] = (map[t] || 0) + 1;
-    });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [data]);
+  // // types distintos deve ser o total de procedimento "descricao_sigtap_procedimento"
+  // const typeData = useMemo(() => {
+  //   const map: Record<string, number> = {};
+  //   data.forEach((item) => {
+  //     const t = item.type || '(vazio)';
+  //     map[t] = (map[t] || 0) + 1;
+  //   });
+  //   return Object.entries(map).map(([name, value]) => ({ name, value }));
+  // }, [data]);
 
   const procedimentoData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -186,44 +236,64 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="bg-blue-600 p-6 rounded-2xl text-white shadow-lg">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex-1 min-w-[200px] max-w-md relative" ref={suggestionsRef}>
-            <label className="block text-blue-100 text-xs font-semibold mb-1 uppercase">
-              Buscar por unidade executante
-            </label>
-            <input
-              type="text"
-              placeholder="Digite o nome da unidade..."
-              className="w-full bg-blue-700 border-none rounded-lg p-2 text-sm focus:ring-2 focus:ring-white outline-none placeholder-blue-300"
-              value={filterUnidade}
-              onChange={(e) => {
-                setFilterUnidade(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
-            />
-            {showSuggestions && unidadeSuggestions.length > 0 && (
-              <ul className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                {unidadeSuggestions.map((nome) => (
-                  <li key={nome}>
-                    <button
-                      type="button"
-                      className="w-full text-left px-4 py-2 text-sm text-slate-800 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:bg-blue-50 dark:focus:bg-blue-900/30 focus:outline-none"
-                      onClick={() => {
-                        setFilterUnidade(nome);
-                        setShowSuggestions(false);
-                      }}
-                    >
-                      {nome}
-                    </button>
-                  </li>
+          <div className="flex flex-wrap items-end gap-4 flex-1 min-w-0">
+            <div className="flex-1 min-w-[200px] max-w-md relative" ref={suggestionsRef}>
+              <label className="block text-blue-100 text-xs font-semibold mb-1 uppercase">
+                Buscar por unidade executante
+              </label>
+              <input
+                type="text"
+                placeholder="Digite o nome da unidade..."
+                className="w-full bg-blue-700 border-none rounded-lg p-2 text-sm focus:ring-2 focus:ring-white outline-none placeholder-blue-300"
+                value={filterUnidade}
+                onChange={(e) => {
+                  setFilterUnidade(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+              />
+              {showSuggestions && unidadeSuggestions.length > 0 && (
+                <ul className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {unidadeSuggestions.map((nome) => (
+                    <li key={nome}>
+                      <button
+                        type="button"
+                        className="w-full text-left px-4 py-2 text-sm text-slate-800 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:bg-blue-50 dark:focus:bg-blue-900/30 focus:outline-none"
+                        onClick={() => {
+                          setFilterUnidade(nome);
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        {nome}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {showSuggestions && filterUnidade.trim() && unidadeSuggestions.length === 0 && (
+                <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                  Nenhuma unidade encontrada.
+                </div>
+              )}
+            </div>
+            <div className="min-w-[200px] max-w-md flex-shrink-0">
+              <label className="block text-blue-100 text-xs font-semibold mb-1 uppercase">
+                Procedimento SIGTAP
+              </label>
+              <select
+                value={filterProcedimentoSigtap}
+                onChange={(e) => setFilterProcedimentoSigtap(e.target.value)}
+                className="w-full bg-blue-700 border-none rounded-lg p-2 text-sm text-white focus:ring-2 focus:ring-white outline-none appearance-none cursor-pointer"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2rem' }}
+              >
+                <option value="">Todos</option>
+                {procedimentoSigtapOptions.map((proc) => (
+                  <option key={proc} value={proc} className="bg-slate-800 text-white">
+                    {proc.length > 60 ? `${proc.slice(0, 57)}...` : proc}
+                  </option>
                 ))}
-              </ul>
-            )}
-            {showSuggestions && filterUnidade.trim() && unidadeSuggestions.length === 0 && (
-              <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-                Nenhuma unidade encontrada.
-              </div>
-            )}
+              </select>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <p className="text-blue-100 text-sm hidden sm:block">
@@ -252,14 +322,14 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
           </h3>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <p className="text-slate-400 text-xs font-bold uppercase mb-1">Unidades distintas</p>
+          <p className="text-slate-400 text-xs font-bold uppercase mb-1">Unidade(s) Executante(s)</p>
           <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
             {unitData.length}
           </h3>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <p className="text-slate-400 text-xs font-bold uppercase mb-1">Types distintos</p>
-          <h3 className="text-3xl font-black text-amber-600 dark:text-amber-400">{typeData.length}</h3>
+          <p className="text-slate-400 text-xs font-bold uppercase mb-1">N° Procedimentos (SIGTAP)</p>
+          <h3 className="text-3xl font-black text-amber-600 dark:text-amber-400">{procedimentoData.length}</h3>
         </div>
       </div>
 
@@ -276,9 +346,9 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} tickFormatter={formatMonthLabel} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} />
-                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', border: 'none', borderRadius: '8px', fontSize: '12px' }} />
+                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', border: 'none', borderRadius: '8px', fontSize: '12px' }} labelFormatter={formatMonthLabel} />
                 <Area type="monotone" dataKey="count" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSolicitacao)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -296,9 +366,9 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} tickFormatter={formatMonthLabel} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} />
-                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', border: 'none', borderRadius: '8px', fontSize: '12px' }} />
+                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', border: 'none', borderRadius: '8px', fontSize: '12px' }} labelFormatter={formatMonthLabel} />
                 <Area type="monotone" dataKey="count" stroke="#10b981" fillOpacity={1} fill="url(#colorAprovacao)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -341,7 +411,7 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={typeData}
+                  data={procedimentoData}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
@@ -349,7 +419,7 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                   outerRadius={80}
                   label={({ name, value }) => `${name}: ${value}`}
                 >
-                  {typeData.map((_, i) => (
+                  {procedimentoData.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
