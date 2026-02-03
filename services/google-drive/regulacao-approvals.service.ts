@@ -76,9 +76,11 @@ function parseCsvLine(line: string): string[] {
 }
 
 /**
- * Parse do CSV de regulação. Cabeçalho na primeira linha; colunas esperadas incluem
- * codigo_solicitacao, data_solicitacao, data_aprovacao, nome_unidade_executante,
- * descricao_sigtap_procedimento, type, status_solicitacao, codigo_unidade_executante.
+ * Parse do CSV de regulação. Cabeçalho na primeira linha; colunas esperadas:
+ * descricao_interna_procedimento, data_aprovacao, nome_unidade_executante,
+ * data_solicitacao, codigo_solicitacao, nome_grupo_procedimento,
+ * descricao_sigtap_procedimento, status_solicitacao.
+ * Apenas essas colunas são mapeadas para ApprovalRecord.
  */
 function parseCsvToApprovalRecords(csvText: string): ApprovalRecord[] {
   const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
@@ -87,16 +89,27 @@ function parseCsvToApprovalRecords(csvText: string): ApprovalRecord[] {
     return [];
   }
   const headerLine = lines[0];
-  const headers = parseCsvLine(headerLine);
+  const headers = parseCsvLine(headerLine).map((h) => (h || '').trim());
+  const colIndex: Record<string, number> = {};
+  for (let j = 0; j < headers.length; j++) {
+    const key = headers[j] || `col_${j}`;
+    colIndex[key] = j;
+  }
   const records: ApprovalRecord[] = [];
   for (let i = 1; i < lines.length; i++) {
     const values = parseCsvLine(lines[i]);
-    const row: Record<string, unknown> = {};
-    for (let j = 0; j < headers.length; j++) {
-      const key = headers[j]?.trim() || `col_${j}`;
-      row[key] = values[j] ?? '';
-    }
-    records.push(row as ApprovalRecord);
+    const get = (col: string) => (colIndex[col] !== undefined ? (values[colIndex[col]] ?? '').trim() : '');
+    const row: ApprovalRecord = {
+      descricao_interna_procedimento: get('descricao_interna_procedimento'),
+      data_aprovacao: get('data_aprovacao'),
+      nome_unidade_executante: get('nome_unidade_executante'),
+      data_solicitacao: get('data_solicitacao'),
+      codigo_solicitacao: get('codigo_solicitacao') || '',
+      nome_grupo_procedimento: get('nome_grupo_procedimento'),
+      descricao_sigtap_procedimento: get('descricao_sigtap_procedimento'),
+      status_solicitacao: get('status_solicitacao') || undefined,
+    };
+    records.push(row);
   }
   return records;
 }

@@ -31,19 +31,19 @@ function toDateOnly(iso: string): string {
   return iso.slice(0, 10);
 }
 
-/** Retorna chave do mês "YYYY-MM" para agregação. */
-function toMonthKey(iso: string): string {
+/** Retorna chave do dia "YYYY-MM-DD" para agregação. */
+function toDayKey(iso: string): string {
   if (!iso) return '';
-  return iso.slice(0, 7);
+  return iso.slice(0, 10);
 }
 
-/** Formata "YYYY-MM" para exibição no eixo (ex.: "Jan/2026"). */
-function formatMonthLabel(monthKey: string): string {
-  if (!monthKey || monthKey.length < 7) return monthKey;
-  const [year, month] = monthKey.split('-');
-  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+/** Formata "YYYY-MM-DD" para exibição no eixo (ex.: "03/02"). */
+function formatDayLabel(dayKey: string): string {
+  if (!dayKey || dayKey.length < 10) return dayKey;
+  const [year, month, day] = dayKey.split('-');
+  const d = parseInt(day, 10);
   const m = parseInt(month, 10);
-  return `${monthNames[m - 1] ?? month}/${year}`;
+  return `${d.toString().padStart(2, '0')}/${m.toString().padStart(2, '0')}`;
 }
 
 interface ApprovalsPageProps {
@@ -158,8 +158,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
   const chartDataByDateSolicitacao = useMemo(() => {
     const map: Record<string, number> = {};
     data.forEach((item) => {
-      const monthKey = toMonthKey(item.data_solicitacao || '');
-      if (monthKey) map[monthKey] = (map[monthKey] || 0) + 1;
+      const dayKey = toDayKey(item.data_solicitacao || '');
+      if (dayKey) map[dayKey] = (map[dayKey] || 0) + 1;
     });
     return Object.entries(map)
       .map(([date, count]) => ({ date, count }))
@@ -169,8 +169,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
   const chartDataByDateAprovacao = useMemo(() => {
     const map: Record<string, number> = {};
     data.forEach((item) => {
-      const monthKey = toMonthKey(item.data_aprovacao || '');
-      if (monthKey) map[monthKey] = (map[monthKey] || 0) + 1;
+      const dayKey = toDayKey(item.data_aprovacao || '');
+      if (dayKey) map[dayKey] = (map[dayKey] || 0) + 1;
     });
     return Object.entries(map)
       .map(([date, count]) => ({ date, count }))
@@ -291,6 +291,7 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                   <option key={proc} value={proc} className="bg-slate-800 text-white">
                     {proc.length > 60 ? `${proc.slice(0, 57)}...` : proc}
                   </option>
+
                 ))}
               </select>
             </div>
@@ -346,9 +347,9 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} tickFormatter={formatMonthLabel} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} tickFormatter={formatDayLabel} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} />
-                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', border: 'none', borderRadius: '8px', fontSize: '12px' }} labelFormatter={formatMonthLabel} />
+                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', border: 'none', borderRadius: '8px', fontSize: '12px' }} labelFormatter={formatDayLabel} />
                 <Area type="monotone" dataKey="count" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSolicitacao)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -366,9 +367,9 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} tickFormatter={formatMonthLabel} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} tickFormatter={formatDayLabel} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: axisColor }} />
-                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', border: 'none', borderRadius: '8px', fontSize: '12px' }} labelFormatter={formatMonthLabel} />
+                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', border: 'none', borderRadius: '8px', fontSize: '12px' }} labelFormatter={formatDayLabel} />
                 <Area type="monotone" dataKey="count" stroke="#10b981" fillOpacity={1} fill="url(#colorAprovacao)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -443,8 +444,9 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                 <th className="px-6 py-4">Data solicitação</th>
                 <th className="px-6 py-4">Data aprovação</th>
                 <th className="px-6 py-4">Duração</th>
+                <th className="px-6 py-4">Procedimento (interno)</th>
+                <th className="px-6 py-4">Grupo procedimento</th>
                 <th className="px-6 py-4">Procedimento SIGTAP</th>
-                <th className="px-6 py-4">Type</th>
                 <th className="px-6 py-4">Status</th>
               </tr>
             </thead>
@@ -459,10 +461,15 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                     <td className="px-6 py-4 dark:text-slate-300">{item.data_solicitacao ? new Date(item.data_solicitacao).toLocaleString('pt-BR') : '—'}</td>
                     <td className="px-6 py-4 dark:text-slate-300">{item.data_aprovacao ? new Date(item.data_aprovacao).toLocaleString('pt-BR') : '—'}</td>
                     <td className="px-6 py-4 dark:text-slate-300">{formatDuration(hours)}</td>
+                    <td className="px-6 py-4 dark:text-slate-300 text-xs max-w-[200px] truncate" title={item.descricao_interna_procedimento || ''}>
+                      {item.descricao_interna_procedimento?.trim() || '—'}
+                    </td>
+                    <td className="px-6 py-4 dark:text-slate-300 text-xs max-w-[150px] truncate" title={item.nome_grupo_procedimento || ''}>
+                      {item.nome_grupo_procedimento?.trim() || '—'}
+                    </td>
                     <td className="px-6 py-4 dark:text-slate-300 text-xs max-w-[200px] truncate" title={item.descricao_sigtap_procedimento || ''}>
                       {item.descricao_sigtap_procedimento?.trim() || '—'}
                     </td>
-                    <td className="px-6 py-4 dark:text-slate-300 text-xs">{item.type || '—'}</td>
                     <td className="px-6 py-4">
                       <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                         {item.status_solicitacao || '—'}

@@ -169,15 +169,15 @@ export interface SisregRecord {
   municipio_paciente_residencia?: string;
 }
 
-/** Registro de aprovação (JSON regulação no Drive): dados para filtros e métricas */
+/** Registro de aprovação (CSV regulação no Drive): colunas usadas na consulta */
 export interface ApprovalRecord {
-  codigo_solicitacao: string | number;
-  data_solicitacao: string;
+  descricao_interna_procedimento: string;
   data_aprovacao: string;
   nome_unidade_executante: string;
+  data_solicitacao: string;
+  codigo_solicitacao: string | number;
+  nome_grupo_procedimento: string;
   descricao_sigtap_procedimento: string;
-  type: string;
   status_solicitacao?: string;
-  codigo_unidade_executante?: string;
   [key: string]: unknown;
 }
