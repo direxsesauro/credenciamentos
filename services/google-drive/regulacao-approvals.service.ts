@@ -1,5 +1,12 @@
 import { ApprovalRecord } from '../../types';
 
+/**
+ * DESATIVADO: A leitura do CSV de regulação no Google Drive foi desativada.
+ * Os dados de aprovação/regulação passaram a ser consumidos do Supabase
+ * (services/supabase/regulacao-approvals.service.ts).
+ * O código abaixo permanece comentado para referência ou reativação futura.
+ */
+
 /** Formato antigo: um único dia (objeto com sucesso, mensagem, dados). */
 interface DriveJsonResponseSingle {
   sucesso?: boolean;
@@ -115,9 +122,12 @@ function parseCsvToApprovalRecords(csvText: string): ApprovalRecord[] {
 }
 
 /**
- * Busca o arquivo de regulação/aprovações no Google Drive (CSV em teste; JSON comentado) e retorna os registros.
+ * Busca o arquivo de regulação/aprovações no Google Drive (CSV).
+ * DESATIVADO: regulação passou a ser lida do Supabase. Código comentado abaixo.
  */
 export async function fetchApprovalsFromDrive(): Promise<ApprovalRecord[]> {
+  throw new Error('Leitura de regulação via CSV do Drive está desativada. Use Supabase (VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY).');
+  /*
   const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
   const fileIdInput = import.meta.env.VITE_GOOGLE_DRIVE_JSON_REG_ID;
 
@@ -165,49 +175,9 @@ export async function fetchApprovalsFromDrive(): Promise<ApprovalRecord[]> {
     throw new Error(`Erro ao buscar arquivo: ${response.status} ${response.statusText}. ${errorText.substring(0, 100)}`);
   }
 
-  // —— Teste: leitura de CSV ——
   const csvText = await response.text();
   const dados = parseCsvToApprovalRecords(csvText);
   console.log('[RegulacaoDrive] CSV parseado:', dados.length, 'registros');
-  cache = { data: dados, timestamp: Date.now() };
-  return dados;
-
-  // —— Código de leitura de arquivo JSON (comentado para teste CSV) ——
-  /*
-  const raw: DriveJsonResponse = await response.json();
-  const logPrefix = '[RegulacaoDrive]';
-  console.log(logPrefix, 'Resposta recebida:', Array.isArray(raw) ? `array com ${(raw as unknown[]).length} itens` : 'objeto único');
-  if (Array.isArray(raw)) {
-    console.log(logPrefix, 'Primeiro item (amostra):', (raw as unknown[])[0]);
-  } else {
-    console.log(logPrefix, 'Objeto (amostra):', { sucesso: (raw as DriveJsonResponseSingle).sucesso, temDados: Array.isArray((raw as DriveJsonResponseSingle).dados), qtdDados: ((raw as DriveJsonResponseSingle).dados?.length ?? 0) });
-  }
-  let dados: ApprovalRecord[];
-  if (Array.isArray(raw)) {
-    dados = [];
-    for (let i = 0; i < raw.length; i++) {
-      const entry = raw[i] as DriveJsonDayEntryWithResultado | DriveJsonDayEntryFlat;
-      const res = ('resultado' in entry && entry.resultado ? entry.resultado : entry) as DriveJsonDayEntryFlat;
-      const dataConsulta = 'data_consulta' in entry ? entry.data_consulta : undefined;
-      console.log(logPrefix, `Dia ${i + 1}/${raw.length}`, dataConsulta ?? '(flat)', 'sucesso:', res?.sucesso, 'qtdDados:', res?.dados?.length ?? 0);
-      if (!res) continue;
-      if (res.sucesso === false) continue;
-      if (res.dados && Array.isArray(res.dados)) {
-        dados.push(...res.dados);
-      }
-    }
-    console.log(logPrefix, 'Total de registros após merge:', dados.length);
-  } else {
-    if (raw.sucesso === false) {
-      throw new Error((raw as DriveJsonResponseSingle).mensagem || 'A API retornou sucesso: false.');
-    }
-    const single = raw as DriveJsonResponseSingle;
-    if (!single.dados || !Array.isArray(single.dados)) {
-      throw new Error('Resposta do JSON sem campo "dados" ou "dados" não é um array.');
-    }
-    dados = single.dados;
-    console.log(logPrefix, 'Formato antigo — total de registros:', dados.length);
-  }
   cache = { data: dados, timestamp: Date.now() };
   return dados;
   */

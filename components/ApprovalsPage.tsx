@@ -1,14 +1,20 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ApprovalRecord } from '../types';
-import { fetchApprovalsFromDrive } from '../services/google-drive/regulacao-approvals.service';
+// Leitura de regulação via CSV do Drive desativada; dados vêm do Supabase.
+// import { fetchApprovalsFromDrive } from '../services/google-drive/regulacao-approvals.service';
+import {
+  fetchApprovalsFromSupabase,
+  isSupabaseConfigured,
+} from '../services/supabase/regulacao-approvals.service';
 import { useToast } from '../hooks/use-toast';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell,
 } from 'recharts';
 
-const fileId = import.meta.env.VITE_GOOGLE_DRIVE_JSON_REG_ID || '';
+// const fileId = import.meta.env.VITE_GOOGLE_DRIVE_JSON_REG_ID || '';
+const useSupabase = isSupabaseConfigured();
 
 /** Duração em horas entre data_aprovacao e data_solicitacao */
 function getDurationHours(solicitacao: string, aprovacao: string): number | null {
@@ -58,9 +64,10 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const { data: apiData = [], isLoading, error, refetch } = useQuery<ApprovalRecord[]>({
-    queryKey: ['drive-approvals', fileId],
-    queryFn: fetchApprovalsFromDrive,
-    enabled: !!fileId,
+    queryKey: ['supabase-approvals'],
+    queryFn: fetchApprovalsFromSupabase,
+    enabled: useSupabase,
+    // Drive (desativado): queryKey: ['drive-approvals', fileId], queryFn: fetchApprovalsFromDrive, enabled: useSupabase || !!fileId,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     retry: 2,
@@ -71,7 +78,7 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
     if (error) {
       toast({
         title: 'Erro ao carregar Aprovações',
-        description: error instanceof Error ? error.message : 'Não foi possível carregar os dados do Google Drive.',
+        description: error instanceof Error ? error.message : 'Não foi possível carregar os dados do Supabase.',
         variant: 'destructive',
       });
     }
@@ -215,10 +222,12 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
   const gridColor = isDarkMode ? '#1e293b' : '#f1f5f9';
   const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-  if (!fileId) {
+  if (!useSupabase) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
-        <p className="text-slate-500 dark:text-slate-400">Configure VITE_GOOGLE_DRIVE_JSON_REG_ID no .env.local</p>
+        <p className="text-slate-500 dark:text-slate-400">
+          Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env.local
+        </p>
       </div>
     );
   }
@@ -227,7 +236,7 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
     return (
       <div className="flex flex-col items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
-        <p className="text-slate-500 animate-pulse">Carregando aprovações do Google Drive...</p>
+        <p className="text-slate-500 animate-pulse">Carregando aprovações do Supabase...</p>
       </div>
     );
   }
@@ -308,7 +317,7 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
             </button>
           </div>
         </div>
-        <p className="text-blue-100 text-sm mt-2">Leitura do arquivo JSON de regulação (Google Drive)</p>
+        <p className="text-blue-100 text-sm mt-2">Dados de regulação (Supabase)</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -337,8 +346,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <h4 className="text-lg font-bold mb-6 dark:text-white">Por data de solicitação</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full min-h-[256px]" style={{ height: 256 }}>
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <AreaChart data={chartDataByDateSolicitacao}>
                 <defs>
                   <linearGradient id="colorSolicitacao" x1="0" y1="0" x2="0" y2="1">
@@ -357,8 +366,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <h4 className="text-lg font-bold mb-6 dark:text-white">Por data de aprovação</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full min-h-[256px]" style={{ height: 256 }}>
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <AreaChart data={chartDataByDateAprovacao}>
                 <defs>
                   <linearGradient id="colorAprovacao" x1="0" y1="0" x2="0" y2="1">
@@ -380,8 +389,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <h4 className="text-lg font-bold mb-6 dark:text-white">Top unidades</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full min-h-[256px]" style={{ height: 256 }}>
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <BarChart data={unitData} layout="vertical" margin={{ left: 8, right: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridColor} />
                 <XAxis type="number" hide />
@@ -394,8 +403,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <h4 className="text-lg font-bold mb-6 dark:text-white">Top procedimentos (SIGTAP)</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full min-h-[256px]" style={{ height: 256 }}>
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <BarChart data={procedimentoData} layout="vertical" margin={{ left: 8, right: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridColor} />
                 <XAxis type="number" hide />
@@ -408,8 +417,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <h4 className="text-lg font-bold mb-6 dark:text-white">Por type</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full min-h-[256px]" style={{ height: 256 }}>
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <PieChart>
                 <Pie
                   data={procedimentoData}
@@ -431,6 +440,8 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
         </div>
       </div>
 
+      {/* Lista de aprovações desabilitada */}
+      {false && (
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800">
           <h4 className="font-bold dark:text-white">Lista de aprovações</h4>
@@ -485,6 +496,7 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
           Exibindo todos os {data.length} registros.
         </div>
       </div>
+      )}
     </div>
   );
 };
