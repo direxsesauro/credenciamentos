@@ -214,12 +214,6 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
     return qtdMeses > 0 ? totalNotasFiscais / qtdMeses : 0;
   }, [filteredPayments, totalNotasFiscais]);
 
-  // Dados do gráfico de evolução + mês extra "Média" com marcador do valor médio das NFs
-  const chartEvolutionData = useMemo(() => [
-    ...monthlyData,
-    { name: 'Média', total: 0, fed: 0, est: 0, nfe: mediaNotasFiscaisPorMes, expected: expectedMonthlyValue }
-  ], [monthlyData, mediaNotasFiscaisPorMes, expectedMonthlyValue]);
-
   // Total somado das ordens bancárias (OBs) lançadas no sistema
   const totalFromOBs = useMemo(() => totalFed + totalEst, [totalFed, totalEst]);
 
@@ -374,6 +368,12 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   const valorEstimadoMes = useMemo(() => {
     return tabelaProcedimentosPorAprovacoes.reduce((acc, row) => acc + row.total, 0);
   }, [tabelaProcedimentosPorAprovacoes]);
+
+  // Dados do gráfico de evolução + ponto extra "Estimado" (valor estimado para o mês)
+  const chartEvolutionData = useMemo(() => [
+    ...monthlyData,
+    { name: 'Estimado', total: 0, fed: 0, est: 0, nfe: valorEstimadoMes, expected: expectedMonthlyValue }
+  ], [monthlyData, valorEstimadoMes, expectedMonthlyValue]);
 
   // Calculo de todas as Ordens Bancarias para a lista detalhada
   // Helper para parsing de data consistente (sempre local para evitar shift de timezone)
@@ -680,14 +680,13 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
               />
 
               <ReferenceDot
-                x="Média"
-                y={mediaNotasFiscaisPorMes}
+                x="Estimado"
+                y={valorEstimadoMes}
                 r={8}
                 fill="#ccc"
-                // cor cinza claro
                 stroke="#ccc"
                 strokeWidth={2}
-                label={{ value: formatCurrency(mediaNotasFiscaisPorMes), position: 'left', fontSize: 10, fill: axisColor }}
+                label={{ value: formatCurrency(valorEstimadoMes), position: 'left', fontSize: 10, fill: axisColor }}
               />
             </ComposedChart>
           </ResponsiveContainer>
