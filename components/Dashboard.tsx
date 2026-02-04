@@ -1,15 +1,15 @@
-
 import React, { useState, useMemo } from 'react';
-import { Contract, PaymentRecord, EmpenhoFinanceiro } from '../types';
+import { Contract, PaymentRecord, EmpenhoFinanceiro, ApprovalRecord } from '../types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area, Line, ComposedChart,
+  PieChart, Pie, Cell, AreaChart, Area, Line, LineChart, ComposedChart,
   RadialBarChart, RadialBar, PolarAngleAxis,
   ReferenceDot
 } from 'recharts';
 import { MONTHS } from '../constants';
 import { useQuery } from '@tanstack/react-query';
 import { getEmpenhosByNumbers } from '../services/google-drive/empenhos.service';
+import { fetchApprovalsFromSupabase, isSupabaseConfigured } from '../services/supabase/regulacao-approvals.service';
 
 interface DashboardProps {
   contracts: Contract[];
@@ -21,6 +21,9 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
   const [filterContract, setFilterContract] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showCharts, setShowCharts] = useState<boolean>(true);
+  const [filterRegulacaoYear, setFilterRegulacaoYear] = useState<string>(new Date().getFullYear().toString());
+  const [filterRegulacaoMonth, setFilterRegulacaoMonth] = useState<string>('all');
 
   // Cores adaptativas para o gráfico
   const axisColor = isDarkMode ? '#94a3b8' : '#64748b';
@@ -225,24 +228,33 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
     return filteredContractsForExpected.reduce((acc, c) => acc + c.valor_global_anul, 0);
   }, [filteredContractsForExpected]);
 
-  // Consumo do contrato pelas NFs (%): (somatório NFs / valor global) * 100
-  const consumoPercent = useMemo(() => {
+  // Consumo do contrato pelas NFs (%): (somatório NFs / valor global) * 100 (pode ultrapassar 100%)
+  const consumoPercentRaw = useMemo(() => {
     if (totalContractValue <= 0) return 0;
-    return Math.min(100, (totalNotasFiscais / totalContractValue) * 100);
+    return (totalNotasFiscais / totalContractValue) * 100;
   }, [totalNotasFiscais, totalContractValue]);
+
+  const overflowPercent = useMemo(() => Math.max(0, consumoPercentRaw - 100), [consumoPercentRaw]);
 
   // Restante: valor global do contrato menos somatório das NFs
   const restanteContratoMenosNFs = useMemo(() => totalContractValue - totalNotasFiscais, [totalContractValue, totalNotasFiscais]);
 
-  // Dados para o gráfico de progresso circular (consumo NFs / contrato)
-  const radialProgressData = useMemo(() => [
-    { name: 'Consumo', value: Math.round(consumoPercent * 10) / 10, fill: '#10b981' }
-  ], [consumoPercent]);
+  // Dados para o gráfico: até 100% verde; acima de 100% prolongamento em vermelho
+  const radialProgressData = useMemo(() => {
+    const consumo = Math.round(consumoPercentRaw * 10) / 10;
+    if (overflowPercent > 0) {
+      return [
+        { name: 'Consumo', value: 100, fill: '#10b981' },
+        { name: 'Prolongamento', value: Math.round(overflowPercent * 10) / 10, fill: '#ef4444' }
+      ];
+    }
+    return [{ name: 'Consumo', value: consumo, fill: '#10b981' }];
+  }, [consumoPercentRaw, overflowPercent]);
 
-  // Calculo do Restante a Pagar (Total do Contrato - Total Pago calculado pelos empenhos)
+  // Restante a Pagar = Valor das NF's − Total Pago (somatório dos empenhos, não das ordens)
   const remainingToPay = useMemo(() => {
     return totalNotasFiscais - totalPaid;
-  }, [totalContractValue, totalPaid]);
+  }, [totalNotasFiscais, totalPaid]);
 
   const pieData = [
     { name: 'Fonte Federal', value: totalFed },
@@ -253,6 +265,115 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+  // Contrato selecionado e unidade executante (para regulação)
+  const selectedContract = useMemo(() => {
+    if (filterContract === 'all') return null;
+    return contracts.find(c => c.numero_contrato === filterContract) ?? null;
+  }, [contracts, filterContract]);
+
+  const nomeUnidadeExecutante = selectedContract?.nome_unidade_executante?.trim() ?? '';
+
+  const useSupabase = isSupabaseConfigured();
+  const { data: approvalsFromSupabase = [] } = useQuery<ApprovalRecord[]>({
+    queryKey: ['supabase-approvals-dashboard'],
+    queryFn: fetchApprovalsFromSupabase,
+    enabled: useSupabase && filterContract !== 'all' && !!nomeUnidadeExecutante,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const approvalsFilteredByUnidade = useMemo(() => {
+    if (!nomeUnidadeExecutante) return [];
+    return approvalsFromSupabase.filter(
+      r => (r.nome_unidade_executante || '').trim() === nomeUnidadeExecutante
+    );
+  }, [approvalsFromSupabase, nomeUnidadeExecutante]);
+
+  const parseYearMonth = (dateStr: string): { year: number; month: number } | null => {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const s = dateStr.trim().slice(0, 10);
+    const match = s.match(/^(\d{4})-(\d{2})/);
+    if (!match) return null;
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    if (month < 1 || month > 12) return null;
+    return { year, month };
+  };
+
+  const regulacaoChartData = useMemo(() => {
+    const year = parseInt(filterRegulacaoYear, 10);
+    if (isNaN(year)) return [];
+    const monthsToShow = filterRegulacaoMonth === 'all'
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [parseInt(filterRegulacaoMonth, 10)];
+
+    return monthsToShow.map(mes => {
+      let solicitacoes = 0;
+      let aprovacoes = 0;
+      approvalsFilteredByUnidade.forEach(r => {
+        const sol = parseYearMonth(r.data_solicitacao ?? '');
+        if (sol && sol.year === year && sol.month === mes) solicitacoes++;
+        const apr = parseYearMonth(r.data_aprovacao ?? '');
+        if (apr && apr.year === year && apr.month === mes) aprovacoes++;
+      });
+      return {
+        name: MONTHS[mes - 1],
+        solicitacoes,
+        aprovacoes,
+      };
+    });
+  }, [approvalsFilteredByUnidade, filterRegulacaoYear, filterRegulacaoMonth]);
+
+  const totalAprovadosNoPeriodo = useMemo(() => {
+    const year = parseInt(filterRegulacaoYear, 10);
+    if (isNaN(year)) return 0;
+    const monthsToShow = filterRegulacaoMonth === 'all'
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [parseInt(filterRegulacaoMonth, 10)];
+
+    let total = 0;
+    approvalsFilteredByUnidade.forEach(r => {
+      const apr = parseYearMonth(r.data_aprovacao ?? '');
+      if (apr && apr.year === year && monthsToShow.includes(apr.month)) total++;
+    });
+    return total;
+  }, [approvalsFilteredByUnidade, filterRegulacaoYear, filterRegulacaoMonth]);
+
+  const approvalsInPeriod = useMemo(() => {
+    const year = parseInt(filterRegulacaoYear, 10);
+    if (isNaN(year)) return [];
+    const monthsToShow = filterRegulacaoMonth === 'all'
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [parseInt(filterRegulacaoMonth, 10)];
+
+    return approvalsFilteredByUnidade.filter(r => {
+      const apr = parseYearMonth(r.data_aprovacao ?? '');
+      return apr && apr.year === year && monthsToShow.includes(apr.month);
+    });
+  }, [approvalsFilteredByUnidade, filterRegulacaoYear, filterRegulacaoMonth]);
+
+  const tabelaProcedimentosPorAprovacoes = useMemo(() => {
+    const map = new Map<string, number>();
+    approvalsInPeriod.forEach(r => {
+      const nome = (r.descricao_sigtap_procedimento || r.descricao_interna_procedimento || 'Não informado').trim();
+      map.set(nome, (map.get(nome) ?? 0) + 1);
+    });
+    const mockPrecoUnitario = (procedimento: string): number => {
+      let hash = 0;
+      for (let i = 0; i < procedimento.length; i++) hash = ((hash << 5) - hash) + procedimento.charCodeAt(i);
+      return 80 + (Math.abs(hash) % 320);
+    };
+    return Array.from(map.entries())
+      .map(([procedimento, quantidade]) => {
+        const precoUnitario = mockPrecoUnitario(procedimento);
+        return { procedimento, quantidade, precoUnitario, total: quantidade * precoUnitario };
+      })
+      .sort((a, b) => b.quantidade - a.quantidade);
+  }, [approvalsInPeriod]);
+
+  const valorEstimadoMes = useMemo(() => {
+    return tabelaProcedimentosPorAprovacoes.reduce((acc, row) => acc + row.total, 0);
+  }, [tabelaProcedimentosPorAprovacoes]);
 
   // Calculo de todas as Ordens Bancarias para a lista detalhada
   // Helper para parsing de data consistente (sempre local para evitar shift de timezone)
@@ -430,25 +551,38 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
 
 
         <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center justify-center text-center">
-          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Valor das Notas Fiscais</p>
+          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Somatório das Notas Fiscais</p>
           <h3 className="text-xl lg:text-2xl font-bold text-blue-600 dark:text-blue-500 mt-1">{formatCurrency(totalNotasFiscais)}</h3>
           <p className="text-slate-500 dark:text-slate-500 text-xs mt-2.5">Média por mês: {formatCurrency(mediaNotasFiscaisPorMes)}</p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center">
           <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium mb-1">Consumo do contrato (NFs)</p>
-          <div className="relative w-full flex-1 min-h-[140px] flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={140}>
-              <RadialBarChart cx="50%" cy="50%" innerRadius="55%" outerRadius="85%" barSize={12} data={radialProgressData} startAngle={90} endAngle={-270}>
-                <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                <RadialBar background dataKey="value" cornerRadius={6} />
+          <div className="relative w-full flex-1 min-h-[200px] flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={200}>
+              <RadialBarChart
+                cx="50%"
+                cy="50%"
+                innerRadius="60%"
+                outerRadius="85%"
+                barSize={14}
+                data={radialProgressData}
+                startAngle={90}
+                endAngle={overflowPercent > 0 ? 90 - 360 - (overflowPercent / 100) * 360 : -270}
+              >
+                <PolarAngleAxis
+                  type="number"
+                  domain={overflowPercent > 0 ? [0, 100 + overflowPercent] : [0, 100]}
+                  tick={false}
+                />
+                <RadialBar background dataKey="value" cornerRadius={6} stackId="consumo" />
               </RadialBarChart>
             </ResponsiveContainer>
-            <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-emerald-600 dark:text-emerald-500 pointer-events-none">
-              {consumoPercent.toFixed(1)}%
+            <span className={`absolute inset-0 flex items-center justify-center text-2xl font-bold pointer-events-none ${overflowPercent > 0 ? 'text-red-600 dark:text-red-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
+              {consumoPercentRaw.toFixed(0)}%
             </span>
           </div>
-          <p className="mt-2 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-sm font-semibold text-emerald-700 dark:text-emerald-400 text-center">
+          <p className={`mt-2 px-3 py-2 rounded-lg text-sm font-semibold text-center ${overflowPercent > 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'}`}>
             Saldo Contratual: {formatCurrency(restanteContratoMenosNFs)}
           </p>
         </div>
@@ -456,7 +590,7 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
         
 
         <div className="bg-white dark:bg-slate-900 p-4 lg:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center justify-center text-center">
-          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Total Pago</p>
+          <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Total Pago (Extrato de Empenhos)</p>
           <h3 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{formatCurrency(totalPaid)}</h3>
           <p className="text-slate-500 dark:text-slate-400 text-xs mt-1.5">Ordens bancárias: {formatCurrency(totalFromOBs)}</p>
         </div>
@@ -527,7 +661,7 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
               <Line
                 type="monotone"
                 dataKey="nfe"
-                name="Valor das Notas Fiscais"
+                name="Somatório das Notas Fiscais"
                 stroke="#f97316"
                 strokeWidth={1}
                 dot={{ r: 2, fill: '#f97316' }}
@@ -560,84 +694,223 @@ const Dashboard: React.FC<DashboardProps> = ({ contracts, payments, isDarkMode }
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
-          <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-6">Volume Mensal por Fonte</h4>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: axisColor }} />
-                <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `R$ ${val / 1000}k`} tick={{ fontSize: 12, fill: axisColor }} />
-                <Tooltip
-                  formatter={(val: number) => formatCurrency(val)}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                    color: isDarkMode ? '#f8fafc' : '#1e293b'
-                  }}
-                />
-                <Legend iconType="circle" />
-                <Bar name="Federal" dataKey="fed" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                <Bar name="Estadual" dataKey="est" fill="#10b981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+      {/* Solicitações e Aprovações (Regulação) – só quando um contrato estiver selecionado */}
+      {filterContract !== 'all' && useSupabase && nomeUnidadeExecutante && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Solicitações e Aprovações (Regulação)</h4>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                <span>Ano:</span>
+                <select
+                  value={filterRegulacaoYear}
+                  onChange={(e) => setFilterRegulacaoYear(e.target.value)}
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map(y => (
+                    <option key={y} value={String(y)}>{y}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                <span>Mês:</span>
+                <select
+                  value={filterRegulacaoMonth}
+                  onChange={(e) => setFilterRegulacaoMonth(e.target.value)}
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="all">Todos</option>
+                  {MONTHS.map((m, idx) => (
+                    <option key={idx} value={String(idx + 1)}>{m}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors max-w-3xl w-full">
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Unidade: {nomeUnidadeExecutante}</p>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={regulacaoChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: axisColor }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: axisColor }} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        fontSize: '12px',
+                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                        color: isDarkMode ? '#f8fafc' : '#1e293b',
+                      }}
+                    />
+                    <Legend iconType="circle" />
+                    <Line type="monotone" dataKey="solicitacoes" name="Solicitações" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    <Line type="monotone" dataKey="aprovacoes" name="Aprovações" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="flex flex-col gap-6 min-w-0 lg:min-w-[320px]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col justify-center">
+                  <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Registros aprovados no período</p>
+                  <h3 className="text-2xl lg:text-3xl font-bold text-emerald-600 dark:text-emerald-500 mt-2">{totalAprovadosNoPeriodo}</h3>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    {filterRegulacaoMonth === 'all' ? `Ano ${filterRegulacaoYear}` : `${MONTHS[parseInt(filterRegulacaoMonth, 10) - 1]} ${filterRegulacaoYear}`}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors flex flex-col justify-center">
+                  <p className="text-slate-500 dark:text-slate-400 text-xs lg:text-sm font-medium">Valor estimado para o mês</p>
+                  <h3 className="text-2xl lg:text-3xl font-bold text-blue-600 dark:text-blue-500 mt-2">{formatCurrency(valorEstimadoMes)}</h3>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    Soma dos procedimentos (Qtd. × Preço unitário mock)
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors overflow-hidden">
+                <p className="text-slate-600 dark:text-slate-300 text-sm font-semibold mb-3">Procedimento × Aprovações</p>
+                <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/95 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
+                      <tr>
+                        <th className="py-2 pr-2 font-semibold">Procedimento</th>
+                        <th className="py-2 px-2 font-semibold text-right whitespace-nowrap">Qtd.</th>
+                        <th className="py-2 px-2 font-semibold text-right whitespace-nowrap">Preço Unitário</th>
+                        <th className="py-2 pl-2 font-semibold text-right whitespace-nowrap">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {tabelaProcedimentosPorAprovacoes.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="py-4 text-slate-400 dark:text-slate-500 text-center text-xs">
+                            Nenhuma aprovação no período
+                          </td>
+                        </tr>
+                      ) : (
+                        tabelaProcedimentosPorAprovacoes.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="py-2 pr-2 text-slate-700 dark:text-slate-200" title={row.procedimento}>
+                              <span className="line-clamp-2">{row.procedimento}</span>
+                            </td>
+                            <td className="py-2 px-2 text-right font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                              {row.quantidade}
+                            </td>
+                            <td className="py-2 px-2 text-right text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                              {formatCurrency(row.precoUnitario)}
+                            </td>
+                            <td className="py-2 pl-2 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                              {formatCurrency(row.total)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Seção de gráficos por fonte com botão Ocultar/Ver */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Gráficos por fonte</h3>
+          <button
+            type="button"
+            onClick={() => setShowCharts(!showCharts)}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+            aria-expanded={showCharts}
+          >
+            {showCharts ? 'Ocultar gráficos' : 'Ver gráficos'}
+          </button>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
-          <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-6">Proporção Federal vs Estadual</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(val: number) => formatCurrency(val)}
-                  contentStyle={{
-                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px'
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-                Federal
+        {showCharts && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
+              <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-6">Volume Mensal por Fonte</h4>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: axisColor }} />
+                    <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `R$ ${val / 1000}k`} tick={{ fontSize: 12, fill: axisColor }} />
+                    <Tooltip
+                      formatter={(val: number) => formatCurrency(val)}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                        color: isDarkMode ? '#f8fafc' : '#1e293b'
+                      }}
+                    />
+                    <Legend iconType="circle" />
+                    <Bar name="Federal" dataKey="fed" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                    <Bar name="Estadual" dataKey="est" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-              <span className="text-sm font-bold dark:text-slate-200">{totalPaid > 0 ? ((totalFed / totalPaid) * 100).toFixed(1) : 0}%</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
-                Estadual
+
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
+              <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-6">Proporção Federal vs Estadual</h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(val: number) => formatCurrency(val)}
+                      contentStyle={{
+                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <span className="text-sm font-bold dark:text-slate-200">{totalPaid > 0 ? ((totalEst / totalPaid) * 100).toFixed(1) : 0}%</span>
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                    Federal
+                  </div>
+                  <span className="text-sm font-bold dark:text-slate-200">{totalPaid > 0 ? ((totalFed / totalPaid) * 100).toFixed(1) : 0}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
+                    Estadual
+                  </div>
+                  <span className="text-sm font-bold dark:text-slate-200">{totalPaid > 0 ? ((totalEst / totalPaid) * 100).toFixed(1) : 0}%</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Summary Table Section */}
-      {filterContract !== 'all' && (
+      {/* Summary Table Section (também controlada pelo botão Ocultar/Ver gráficos) */}
+      {filterContract !== 'all' && showCharts && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom-4 duration-500 transition-colors">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800">
             <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">Detalhamento de Ordens Bancárias</h4>

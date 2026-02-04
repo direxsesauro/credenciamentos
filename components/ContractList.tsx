@@ -1,5 +1,6 @@
-
 import React, { useState } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { Contract, PaymentRecord } from '../types';
 
 interface ContractListProps {
@@ -37,6 +38,46 @@ const ContractList: React.FC<ContractListProps> = ({ contracts, payments, onLaun
     return { totalPaid, balance };
   };
 
+  const exportToPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const title = 'Lista de Contratos Registrados';
+    doc.setFontSize(14);
+    doc.text(title, 14, 15);
+    doc.setFontSize(9);
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} • ${filtered.length} contrato(s)`, 14, 22);
+
+    const headers = [['Empresa / CNPJ', 'Contrato / Processo', 'Valor Global', 'Total Pago', 'Saldo', 'Vigência']];
+    const rows = filtered.map((contract) => {
+      const { totalPaid, balance } = getContractFinancials(contract.numero_contrato, contract.valor_global_anul);
+      return [
+        `${contract.empresa}\n${contract.cnpj}`,
+        `${contract.numero_contrato}\nProc: ${contract.numero_processo}`,
+        formatCurrency(contract.valor_global_anul),
+        formatCurrency(totalPaid),
+        formatCurrency(balance),
+        new Date(contract.inicio_vigencia).toLocaleDateString('pt-BR'),
+      ];
+    });
+
+    autoTable(doc, {
+      head: headers,
+      body: rows,
+      startY: 28,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+      columnStyles: {
+        0: { cellWidth: 45 },
+        1: { cellWidth: 38 },
+        2: { cellWidth: 32 },
+        3: { cellWidth: 32 },
+        4: { cellWidth: 32 },
+        5: { cellWidth: 25 },
+      },
+    });
+
+    doc.save(`lista-contratos-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors">
       <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -55,6 +96,15 @@ const ContractList: React.FC<ContractListProps> = ({ contracts, payments, onLaun
             />
             <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
           </div>
+          <button
+            type="button"
+            onClick={exportToPdf}
+            disabled={filtered.length === 0}
+            className="bg-slate-600 text-white p-2 rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            title="Exportar lista em PDF"
+          >
+            <span className="font-bold px-2">📄 PDF</span>
+          </button>
           <button 
             onClick={onAddNew}
             className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition"

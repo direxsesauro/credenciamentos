@@ -13,6 +13,7 @@ export interface Contract {
   fim_vigencia?: string; // Data de término da vigência original
   valor_original?: number; // Valor inicial antes de alterações (pode ser igual a valor_global_anul)
   empenhos?: Empenho[]; // Array de empenhos associados ao contrato
+  nome_unidade_executante?: string; // Unidade executante (regulação) – lista distinta do Supabase
 }
 
 export interface Empenho {

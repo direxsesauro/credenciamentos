@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -90,6 +90,15 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
     retry: 2,
     retryDelay: 1000,
   });
+
+  // Empenhos na ordem de inserção do contrato (para a tabela)
+  const empenhosOrdenados = useMemo(() => {
+    if (!fullContract?.empenhos?.length || !empenhosFinanceiros.length) return empenhosFinanceiros;
+    const byNumero = new Map(empenhosFinanceiros.map(e => [e.numero_empenho.trim(), e]));
+    return fullContract.empenhos
+      .map(e => byNumero.get(e.numero_empenho?.trim() ?? ''))
+      .filter((e): e is EmpenhoFinanceiro => e != null);
+  }, [fullContract?.empenhos, empenhosFinanceiros]);
 
   // Tratar erros de carregamento de empenhos
   useEffect(() => {
@@ -667,7 +676,7 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({ contractId, onBack, o
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {empenhosFinanceiros.map((empenho) => (
+                      {empenhosOrdenados.map((empenho) => (
                         <TableRow key={empenho.numero_empenho}>
                           <TableCell className="font-medium">
                             {empenho.numero_empenho}

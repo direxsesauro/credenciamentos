@@ -1,9 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Contract, Empenho } from '../types';
 import CurrencyInput from './CurrencyInput';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
+import {
+  fetchDistinctNomeUnidadeExecutante,
+  isSupabaseConfigured,
+} from '../services/supabase/regulacao-approvals.service';
 
 interface ContractFormProps {
   initialData?: Contract;
@@ -23,7 +27,8 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
     valor_global_anul: 0,
     valor_original: 0,
     inicio_vigencia: new Date().toISOString().split('T')[0],
-    fim_vigencia: ''
+    fim_vigencia: '',
+    nome_unidade_executante: ''
   });
 
   const createEmptyEmpenho = (): Empenho => ({
@@ -32,6 +37,14 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
   });
 
   const [empenhos, setEmpenhos] = useState<Empenho[]>([]);
+
+  const useSupabase = isSupabaseConfigured();
+  const { data: unidadeExecutanteOptions = [] } = useQuery<string[]>({
+    queryKey: ['distinct-nome-unidade-executante'],
+    queryFn: fetchDistinctNomeUnidadeExecutante,
+    enabled: useSupabase,
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     if (initialData) {
@@ -192,6 +205,25 @@ const ContractForm: React.FC<ContractFormProps> = ({ initialData, onSubmit, onCa
             />
           </div>
         </div>
+
+        {useSupabase && (
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Unidade executante (regulação)</label>
+            <select
+              name="nome_unidade_executante"
+              value={formData.nome_unidade_executante ?? ''}
+              onChange={handleChange}
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+            >
+              <option value="">Selecione...</option>
+              {unidadeExecutanteOptions.map((nome) => (
+                <option key={nome} value={nome}>
+                  {nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1">
           <label className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Natureza do Serviço</label>

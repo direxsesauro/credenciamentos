@@ -65,6 +65,36 @@ export async function fetchApprovalsFromSupabase(): Promise<ApprovalRecord[]> {
   return all;
 }
 
+/**
+ * Busca lista distinta de nome_unidade_executante da tabela approval_records.
+ * Requer RPC get_distinct_nome_unidade_executante no Supabase.
+ * Em erro (RPC inexistente), retorna array vazio.
+ */
+export async function fetchDistinctNomeUnidadeExecutante(): Promise<string[]> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('get_distinct_nome_unidade_executante');
+
+    if (error) {
+      console.warn('Erro ao buscar unidades executantes do Supabase:', error.message);
+      return [];
+    }
+
+    const list = Array.isArray(data) ? data : [];
+    return list
+      .map((v: unknown) => (typeof v === 'string' ? v.trim() : ''))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+  } catch (e) {
+    console.warn('fetchDistinctNomeUnidadeExecutante:', e);
+    return [];
+  }
+}
+
 /** Retorna true se Supabase estiver configurado (prioridade sobre Drive). */
 export function isSupabaseConfigured(): boolean {
   return !!(

@@ -5,6 +5,7 @@ import { ApprovalRecord } from '../types';
 // import { fetchApprovalsFromDrive } from '../services/google-drive/regulacao-approvals.service';
 import {
   fetchApprovalsFromSupabase,
+  fetchDistinctNomeUnidadeExecutante,
   isSupabaseConfigured,
 } from '../services/supabase/regulacao-approvals.service';
 import { useToast } from '../hooks/use-toast';
@@ -60,8 +61,16 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
   const { toast } = useToast();
   const [filterUnidade, setFilterUnidade] = useState('');
   const [filterProcedimentoSigtap, setFilterProcedimentoSigtap] = useState('');
+  const [filterUnidadeExact, setFilterUnidadeExact] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  const { data: unidadeExecutanteOptions = [] } = useQuery<string[]>({
+    queryKey: ['distinct-nome-unidade-executante'],
+    queryFn: fetchDistinctNomeUnidadeExecutante,
+    enabled: useSupabase,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const { data: apiData = [], isLoading, error, refetch } = useQuery<ApprovalRecord[]>({
     queryKey: ['supabase-approvals'],
@@ -138,8 +147,13 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
         (item) => (item.descricao_sigtap_procedimento || '').trim() === filterProcedimentoSigtap
       );
     }
+    if (filterUnidadeExact) {
+      result = result.filter(
+        (item) => (item.nome_unidade_executante || '').trim() === filterUnidadeExact
+      );
+    }
     return result;
-  }, [apiData, filterUnidade, filterProcedimentoSigtap]);
+  }, [apiData, filterUnidade, filterProcedimentoSigtap, filterUnidadeExact]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -304,6 +318,26 @@ const ApprovalsPage: React.FC<ApprovalsPageProps> = ({ isDarkMode }) => {
                 ))}
               </select>
             </div>
+            {unidadeExecutanteOptions.length > 0 && (
+              <div className="min-w-[200px] max-w-md flex-shrink-0">
+                <label className="block text-blue-100 text-xs font-semibold mb-1 uppercase">
+                  Unidade executante (exata)
+                </label>
+                <select
+                  value={filterUnidadeExact}
+                  onChange={(e) => setFilterUnidadeExact(e.target.value)}
+                  className="w-full bg-blue-700 border-none rounded-lg p-2 text-sm text-white focus:ring-2 focus:ring-white outline-none appearance-none cursor-pointer"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2rem' }}
+                >
+                  <option value="">Todas</option>
+                  {unidadeExecutanteOptions.map((nome) => (
+                    <option key={nome} value={nome} className="bg-slate-800 text-white">
+                      {nome.length > 50 ? `${nome.slice(0, 47)}...` : nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <p className="text-blue-100 text-sm hidden sm:block">
